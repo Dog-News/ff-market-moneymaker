@@ -33,25 +33,38 @@
         <br>
         <button @click="test">Go</button>
         <div>{{ datadump }}</div>
-
-        <table class="table table-bordered">
-            <tr>
-                <th>Item Name</th>
-                <th>Purchase Price (Lowest World Median Sales)</th>
-                <th>World</th>
-                <th>Sale Price (Home World Median Sales)</th>
-                <th>Difference</th>
-                <th>Number of sales (Home world)</th>
-            </tr>
-            <tr v-for="item of medianSaleData">
-                <td>{{item.itemID}}</td>
-                <td>{{item.medianPrice}}</td>
-                <td>{{item.worldName}}</td>
-                <td>{{item.selectedWorldMedian}}</td>
-                <td>{{item.difference}}</td>
-                <td>{{item.saleCount}}</td>
-            </tr>
-        </table>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-sm table-bordered small">
+                        <tr>
+                            <th>#</th>
+                            <th>Quality</th>
+                            <th>Name</th>
+                            <th>Profit</th>
+                            <th>World (Cheapest)</th>
+                            <th>Purchase</th>
+                            <th style="max-width: 50px">Sales</th>
+                            <th>World (Home)</th>
+                            <th>Sell</th>
+                            <th style="max-width: 50px">Sales</th>
+                        </tr>
+                        <tr v-for="item of filteredMedianSaleData">
+                            <td><a :href="'https://universalis.app/market/' + item.itemID" :target="'_blank'">{{item.itemID}}</a></td>
+                            <td>{{item.hq ? 'High' : 'Normal'}}</td>
+                            <td style="white-space: nowrap">{{item.itemName}}</td>
+                            <td style="background-color: #32cd3238">{{item.difference?.toLocaleString("en-US")}}</td>
+                            <td>{{item.worldName}}</td>
+                            <td>{{item.medianPrice?.toLocaleString("en-US")}}</td>
+                            <td>{{item.saleCount?.toLocaleString("en-US")}}</td>
+                            <td style="background-color: #ffe4b533">{{selectedWorld}}</td>
+                            <td style="background-color: #ffe4b533">{{item.selectedWorldMedian?.toLocaleString("en-US")}}</td>
+                            <td style="background-color: #ffe4b533">{{item.selectedSaleCount?.toLocaleString("en-US")}}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -74,6 +87,11 @@ export default {
             const data = await this.$axios.$get(`http://localhost:4000/api/getMedianSoldPrice/allItems/${this.selectedWorld}`);
             this.medianSaleData = data;
         },
+    },
+    computed: {
+        filteredMedianSaleData() {
+            return this.medianSaleData?.filter((e) => {return e.difference > 0});
+        }
     },
     name: 'IndexPage'
 }

@@ -6,14 +6,6 @@ const Router = require('koa-router');
 const app = new Koa();
 const router = new Router();
 
-// const Axios = require('axios');
-// const axiosRetry = require('axios-retry');
-// const fs = require('fs');
-// const sqlite3 = require('better-sqlite3')
-// const db = new sqlite3('./database/ffmarket.db');
-// db.pragma('journal_mode = WAL');
-// const baseURL = "https://universalis.app/api/v2/history";
-
 /**************************************************************************
  ************* API routes *************************************************
 **************************************************************************/
@@ -25,42 +17,20 @@ router.get('/', (ctx, next) => {
 
 // Default response
 router.get('/test', (ctx, next) => {
-    market.updateMedianSalePrices();
+    // market.updateMedianSalePrices();
+    market.calculateMedianSalePricesAndInsertToSQL();
     ctx.body = 'testing';
-});
-
-// get median price for specific item
-router.get('/api/getMedianSoldPrice/:itemID/:worldID', async (ctx, next) => {
-    const medianSoldPriceList = market.getMedianDifference(ctx.params.worldID);
-    ctx.body = medianSoldPriceList;
-    // old code
-    // const medianSoldPriceList = getMedianSoldPriceList(ctx.params.itemID);
-    // // sort lowest to highest
-    // medianSoldPriceList.sort((a, b) => {return a.medianSalePrice > b.medianSalePrice ? 1 : -1});
-    // console.log(medianSoldPriceList);
-    // // get selected world price
-    // const selectedWorldPrice = getSelectedWorldPriceFromMedian(medianSoldPriceList, parseInt(ctx.params.worldID));
-    // console.log(selectedWorldPrice);
-    // ctx.body = {medianPriceData: medianSoldPriceList, selectedWorldPrice: selectedWorldPrice};
 });
 
 // api get median price for all items
 router.get('/api/getMedianSoldPrice/allItems/:worldID', async (ctx, next) => {
-    // get median price for all items
-    const medianSoldPriceList = getMedianSoldPricesFromAllWorlds();
-    // sort lowest to highest
-    medianSoldPriceList.sort((a, b) => {return a.medianSalePrice > b.medianSalePrice ? 1 : -1});
-    console.log(medianSoldPriceList);
-    // get selected world price
-    const selectedWorldPrice = getSelectedWorldPriceFromMedian(medianSoldPriceList, parseInt(ctx.params.worldID));
-    console.log(selectedWorldPrice);
-    ctx.body = {medianPriceData: medianSoldPriceList, selectedWorldPrice: selectedWorldPrice};
+    const medianSoldPriceList = market.getMedianDifference(ctx.params.worldID);
+    ctx.body = medianSoldPriceList;
 });
 
 // update item data... WARNING DO NOT DOTHIS UNLESS YOU REALLY NEED TO
 router.get('/api/updateSaleData', async (ctx, next) => {
     console.log("Updating sale history data...THIS MAY TAKE A WHILE!");
-    // ctx.body = await updateSaleData();
     ctx.body = await market.updateItemSaleHistory();
 });
 

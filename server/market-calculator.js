@@ -17,6 +17,7 @@ class MarketCalculator {
         this.worlds = this.getWorldNameAndIDs();
         this.item_limit = 50; // limit length of item list in URL
         this.rate_limit = 1000 // wait 1 second so we don't DDOS universalis
+        this.entries_to_return = 999999; 
         this.entries_within = 604800; // seconds
     }
 
@@ -37,13 +38,13 @@ class MarketCalculator {
         for (let dataCenter of this.dataCenters) {
             // temporary array, remove IDs from this to avoid rate limit on universalis API
             let idArray = item_ids.slice();
-            axiosRetry(Axios, {retries: 10, retryDelay: () => {return 1000 * 5}, retryCondition: (error) => {return error.response.status === 500}});
+            axiosRetry(Axios, {retries: 10, retryDelay: () => {return 1000 * 5}, retryCondition: (error) => {return error?.response?.status === 500 || true}});
             while (idArray.length > 0) {
                 let urlItemList = [];
                 for (let i = 0; i < this.item_limit; i++) {
                     urlItemList.push(idArray.pop());
                 }
-                let requestURL = `${this.baseURL}/${dataCenter}/${urlItemList.toString()}?entriesWithin=${this.entries_within}`;
+                let requestURL = `${this.baseURL}/${dataCenter}/${urlItemList.toString()}?entriesToReturn=${this.entries_to_return}&entriesWithin=${this.entries_within}`;
                 console.log(requestURL);
                 const response = await Axios({method: "get", timeout: 1000 * 30, url: requestURL});
                 for (const item in response.data.items) {
@@ -87,33 +88,69 @@ class MarketCalculator {
     }
 
     calculateMedianSalePricesAndInsertToSQL() {
-        // clear old data
-        this.db.exec('DELETE FROM item_sale_median_data', (err) => {
+        // clear nq median data
+        this.db.exec('DELETE FROM item_sale_median_data_nq', (err) => {
             if (err) {
                 console.log(err);
             }
             else {
-                console.log("Cleared median data.");
+                console.log("Cleared normal quality median data.");
+            }
+        });
+
+        // clear hq median data
+        this.db.exec('DELETE FROM item_sale_median_data_hq', (err) => {
+            if (err) {
+                console.log(err);
+            }
+            else {
+                console.log("Cleared high quality median data.");
             }
         });
 
         const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID, worldName FROM item_sale_history');
-        const itemList = selectStatement1.all();        
+        const itemList = selectStatement1.all();
+
+        // normal quality
         for (let item of itemList) {
-            const selectStatement2 = this.db.prepare('SELECT pricePerUnit FROM item_sale_history WHERE itemID = ? AND worldName = ? ORDER BY pricePerUnit DESC');
+            const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND worldName = ? ORDER BY pricePerUnit DESC');
             const worldSales = selectStatement2.all(item.itemID, item.worldName);
-            let sales = [];
+            let salesNQ = [];
+            let salesHQ = [];
+            let NQSaleCount = 0;
+            let HQSaleCount = 0;
             for (let sale of worldSales) {
-                sales.push(sale.pricePerUnit);
+                if (sale.hq) {
+                    salesHQ.push(sale.pricePerUnit);
+                    HQSaleCount++;
+                } else {
+                    salesNQ.push(sale.pricePerUnit);
+                    NQSaleCount++;
+                }
             }
+
             // math stuff
-            const mid = Math.floor(sales.length / 2), 
-            nums = [...sales].sort((a, b) => a - b);
-            const median = sales.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+            // NQ median
+            let mid = Math.floor(salesNQ.length / 2), 
+            nums = [...salesNQ].sort((a, b) => a - b);
+            const medianNQ = salesNQ.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+            // HQ median
+            mid = Math.floor(salesHQ.length / 2), 
+            nums = [...salesHQ].sort((a, b) => a - b);
+            const medianHQ = salesHQ.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+            
             // insert median data to SQL
-            const insertStatement = this.db.prepare('INSERT INTO item_sale_median_data VALUES(?, ?, ?, ?)');
-            insertStatement.run(item.itemID, Math.floor(median), item.worldName, worldSales.length);
-            console.log("inserted median data");
+            if (salesNQ.length > 0) {
+                const insertStatement1 = this.db.prepare('INSERT INTO item_sale_median_data_nq VALUES(?, ?, ?, ?)');
+                insertStatement1.run(item.itemID, Math.floor(medianNQ), item.worldName, NQSaleCount);
+                console.log(`Inserted ${item.itemID} NQ median`);
+            }
+
+            if (salesHQ.length > 0) {
+                const insertStatement2 = this.db.prepare('INSERT INTO item_sale_median_data_hq VALUES(?, ?, ?, ?)');
+                insertStatement2.run(item.itemID, Math.floor(medianHQ), item.worldName, HQSaleCount);
+                console.log(`Inserted ${item.itemID} HQ median`);
+            }
         }
         return "testing";
     }
@@ -127,21 +164,50 @@ class MarketCalculator {
             // const selectStatement2 = this.db.prepare('SELECT * FROM item_sale_median_data WHERE itemID = ? ORDER BY medianPrice ASC LIMIT 1');
             const selectStatement2 = this.db.prepare(
                 `SELECT
-                    itemID, 
-                    medianPrice, 
-                    worldName, 
-                    saleCount,
-                    (SELECT medianPrice FROM item_sale_median_data WHERE itemID = ? AND worldName = ?) as selectedWorldMedian
-                FROM item_sale_median_data WHERE itemID = ? 
+                    item_sale_median_data_nq.itemID,
+                    item_info.Name as itemName,
+                    item_sale_median_data_nq.medianPrice, 
+                    item_sale_median_data_nq.worldName, 
+                    item_sale_median_data_nq.saleCount,
+                    0 as hq,
+                    (SELECT medianPrice FROM item_sale_median_data_nq WHERE itemID = ? AND worldName = ?) as selectedWorldMedian,
+                    (SELECT saleCount FROM item_sale_median_data_nq WHERE itemID = ? AND worldName = ?) as selectedSaleCount
+                FROM item_sale_median_data_nq
+                LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_nq.itemID
+                WHERE item_sale_median_data_nq.itemID = ?
+                ORDER BY medianPrice ASC LIMIT 1`
+            );
+            const selectStatement3 = this.db.prepare(
+                `SELECT
+                    item_sale_median_data_hq.itemID,
+                    item_info.Name as itemName,
+                    item_sale_median_data_hq.medianPrice, 
+                    item_sale_median_data_hq.worldName, 
+                    item_sale_median_data_hq.saleCount,
+                    1 as hq,
+                    (SELECT medianPrice FROM item_sale_median_data_hq WHERE itemID = ? AND worldName = ?) as selectedWorldMedian,
+                    (SELECT saleCount FROM item_sale_median_data_hq WHERE itemID = ? AND worldName = ?) as selectedSaleCount
+                FROM item_sale_median_data_hq
+                LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_hq.itemID
+                WHERE item_sale_median_data_hq.itemID = ?
                 ORDER BY medianPrice ASC LIMIT 1`
             );
 
-            const itemLowestMedian = selectStatement2.get(item.itemID, selectedWorld, item.itemID);
-            itemLowestMedian.difference = Math.floor(itemLowestMedian.selectedWorldMedian - itemLowestMedian.medianPrice);
-            itemMedianData.push(itemLowestMedian);
+            const itemLowestMedianNQ = selectStatement2.get(item.itemID, selectedWorld, item.itemID, selectedWorld, item.itemID);
+            const itemLowestMedianHQ = selectStatement3.get(item.itemID, selectedWorld, item.itemID, selectedWorld, item.itemID);
+            if (!!itemLowestMedianNQ) {
+                itemLowestMedianNQ.difference = Math.floor(itemLowestMedianNQ.selectedWorldMedian - itemLowestMedianNQ.medianPrice);
+                itemMedianData.push(itemLowestMedianNQ);
+            }
+
+            if (!!itemLowestMedianHQ) {
+                itemLowestMedianHQ.difference = Math.floor(itemLowestMedianHQ.selectedWorldMedian - itemLowestMedianHQ.medianPrice);
+                itemMedianData.push(itemLowestMedianHQ);
+            }
             // console.log("got median");
         }
-        itemMedianData.sort((a, b) => {return a.difference < b.difference ? 1 : -1});
+        itemMedianData.sort((a, b) => {return a.difference < b.difference ? 1 : -1}); // sort by profit
+        // itemMedianData.sort((a, b) => {return a.selectedSaleCount > b.selectedSaleCount ? -1 : 1}); // sort by sales on selected world
         return itemMedianData;
     }
 
