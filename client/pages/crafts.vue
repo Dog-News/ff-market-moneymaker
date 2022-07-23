@@ -78,7 +78,7 @@
                         id="item-table" 
                         :per-page="perPage" 
                         :current-page="currentPage" 
-                        dark sticky-header="200em" 
+                        dark sticky-header="75vh" 
                         :fields="tableFields" 
                         :items="filteredMedianSaleData"
                         :filter="filter"
@@ -86,8 +86,8 @@
                     >
                         <template #thead-top="data">
                             <b-th colspan="8"><span class="sr-only"></span></b-th>
-                            <b-th colspan="3" class="world-heading">Cheapest</b-th>
-                            <b-th colspan="3" class="world-heading">{{selectedWorldForData}}</b-th>
+                            <b-th colspan="3" variant="secondary">Cheapest</b-th>
+                            <b-th colspan="3" variant="primary">{{selectedWorldForData}}</b-th>
                         </template>
 
                         <template #cell(itemID)="itemID">
@@ -169,11 +169,11 @@ export default {
                 {key: "profitPercentage", label: "Profit %", sortable: true, class: (value, key, item) => {return item.profit > 0 ? 'good' : 'bad'}, formatter: (value) => {return value?.toLocaleString("en-US") + "%"}},
                 {key: "quantitySold", label: "Volume", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
                 {key: "averageStackSize", label: "Avg. Stack", sortable: true, formatter: (value) => {return Math.floor(value)?.toLocaleString("en-US")}},
-                {key: "worldName", label: "World", sortable: true, class:["table-text-data", "world-section"]},
+                {key: "worldName", label: "World", sortable: true, class:["table-text-data", "world-1"]},
                 {key: "medianPrice", label: "Purchase", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")  + " ɢ"}},
                 {key: "saleCount", label: "Sales", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
                 // {key: "selectedWorld", label: "World (Home)"},
-                {key: "selectedWorldMedian", label: "Sell", sortable: true, class: "world-section", formatter: (value) => {return value?.toLocaleString("en-US") + " ɢ"}},
+                {key: "selectedWorldMedian", label: "Sell", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US") + " ɢ"}},
                 {key: "selectedSaleCount", label: "Sales", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
             ],
             medianSaleData: null,
@@ -217,7 +217,7 @@ export default {
     table td, table th { text-align: right; }
     .table-text-data { text-align: left; }
     .good {color: lightgreen}
-    .good:before {content: "+"}
+    .good:before {content: "+ "}
 
     /*
      Fix an issue in vue-bootstrap v2.22.0:
@@ -226,9 +226,7 @@ export default {
     .b-table-sticky-header > .table.b-table > thead > tr > th {
     position: sticky !important;
     }
-    .world-heading { text-align: left; }
-    .world-heading, .world-section {
+    .world-heading {
         border-left: 1px solid white;
     }
-    .table.b-table.table-dark > thead > tr > .bg-b-table-default, .table.b-table.table-dark > tbody > tr > .bg-b-table-default, .table.b-table.table-dark > tfoot > tr > .bg-b-table-default { background-color: transparent; }
 </style>

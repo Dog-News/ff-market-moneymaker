@@ -17,7 +17,7 @@ router.get('/', (ctx, next) => {
 
 // Default response
 router.get('/test', (ctx, next) => {
-    // market.updateMedianSalePrices();
+    market.updateMedianSalePrices();
     market.calculateMedianSalePricesAndInsertToSQL();
     ctx.body = 'testing';
 });
