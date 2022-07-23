@@ -157,70 +157,64 @@ class MarketCalculator {
     }
 
     // get list of item IDs and the lowest median sale price/world
-    // TODO: Cleanup the copy/paste duplicate code
     getMedianDifference(selectedWorld) {
         const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID FROM item_sale_history');
-        const itemList = selectStatement1.all();
+        const itemList = selectStatement1.all(); // retrieve all item IDs
         const itemMedianData = [] // store results here
+        
         for (let item of itemList) {
-            // const selectStatement2 = this.db.prepare('SELECT * FROM item_sale_median_data WHERE itemID = ? ORDER BY medianPrice ASC LIMIT 1');
-            const selectStatement2 = this.db.prepare(
-                `SELECT
-                    item_sale_median_data_nq.itemID,
-                    item_info.Name as itemName,
-                    item_sale_median_data_nq.medianPrice, 
-                    item_sale_median_data_nq.worldName, 
-                    item_sale_median_data_nq.saleCount,
-                    0 as hq,
-                    (SELECT medianPrice FROM item_sale_median_data_nq WHERE itemID = ? AND worldName = ?) as selectedWorldMedian,
-                    (SELECT saleCount FROM item_sale_median_data_nq WHERE itemID = ? AND worldName = ?) as selectedSaleCount,
-                    (SELECT SUM(quantity) FROM item_sale_history WHERE itemID = ? AND  hq = 0 LIMIT 1) as quantitySold,
-                    (SELECT AVG(quantity) FROM item_sale_history WHERE itemID = ? AND  hq = 0 LIMIT 1) as averageStackSize
-                FROM item_sale_median_data_nq
-                LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_nq.itemID
-                WHERE item_sale_median_data_nq.itemID = ?
-                ORDER BY medianPrice ASC LIMIT 1`
-            );
-            const selectStatement3 = this.db.prepare(
-                `SELECT
-                    item_sale_median_data_hq.itemID,
-                    item_info.Name as itemName,
-                    item_sale_median_data_hq.medianPrice, 
-                    item_sale_median_data_hq.worldName, 
-                    item_sale_median_data_hq.saleCount,
-                    1 as hq,
-                    (SELECT medianPrice FROM item_sale_median_data_hq WHERE itemID = ? AND worldName = ?) as selectedWorldMedian,
-                    (SELECT saleCount FROM item_sale_median_data_hq WHERE itemID = ? AND worldName = ?) as selectedSaleCount,
-                    (SELECT SUM(quantity) FROM item_sale_history WHERE itemID = ? AND hq = 1 LIMIT 1) as quantitySold,
-                    (SELECT AVG(quantity) FROM item_sale_history WHERE itemID = ? AND  hq = 1 LIMIT 1) as averageStackSize
-                FROM item_sale_median_data_hq
-                LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_hq.itemID
-                WHERE item_sale_median_data_hq.itemID = ?
-                ORDER BY medianPrice ASC LIMIT 1`
-            );
+            const itemLowestMedianNormalQuality = this.getLowestMedianSaleDataAndSelectedWorld(item.itemID, selectedWorld, 'nq');
+            const itemLowestMedianHighQuality = this.getLowestMedianSaleDataAndSelectedWorld(item.itemID, selectedWorld, 'hq');
 
-            const itemLowestMedianNQ = selectStatement2.get(item.itemID, selectedWorld, item.itemID, selectedWorld, item.itemID, item.itemID, item.itemID);
-            const itemLowestMedianHQ = selectStatement3.get(item.itemID, selectedWorld, item.itemID, selectedWorld, item.itemID, item.itemID, item.itemID);
-            if (!!itemLowestMedianNQ) {
-                itemLowestMedianNQ.difference = Math.floor(itemLowestMedianNQ.selectedWorldMedian - itemLowestMedianNQ.medianPrice);
-                itemLowestMedianNQ.predictedTotalProfit = (itemLowestMedianNQ.averageStackSize * itemLowestMedianNQ.selectedWorldMedian) - (itemLowestMedianNQ.averageStackSize * itemLowestMedianNQ.medianPrice);
-                itemLowestMedianNQ.profitPercentage = Math.floor((itemLowestMedianNQ.difference / itemLowestMedianNQ.medianPrice) * 100);
-                itemMedianData.push(itemLowestMedianNQ);
+            if (!!itemLowestMedianNormalQuality) {
+                itemMedianData.push(this.getCalculatedProfits(itemLowestMedianNormalQuality));
             }
 
-            if (!!itemLowestMedianHQ) {
-                itemLowestMedianHQ.difference = Math.floor(itemLowestMedianHQ.selectedWorldMedian - itemLowestMedianHQ.medianPrice);
-                itemLowestMedianHQ.predictedTotalProfit = (itemLowestMedianHQ.averageStackSize * itemLowestMedianHQ.selectedWorldMedian) - (itemLowestMedianHQ.averageStackSize * itemLowestMedianHQ.medianPrice);
-                itemLowestMedianHQ.profitPercentage = Math.floor((itemLowestMedianHQ.difference / itemLowestMedianHQ.medianPrice) * 100);
-                itemMedianData.push(itemLowestMedianHQ);
+            if (!!itemLowestMedianHighQuality) {
+                itemMedianData.push(this.getCalculatedProfits(itemLowestMedianHighQuality));
             }
-            // console.log("got median");
         }
         itemMedianData.sort((a, b) => {return a.predictedTotalProfit < b.predictedTotalProfit ? 1 : -1}); // sort by predicted total profit
         // itemMedianData.sort((a, b) => {return a.difference < b.difference ? 1 : -1}); // sort by profit
         // itemMedianData.sort((a, b) => {return a.selectedSaleCount > b.selectedSaleCount ? -1 : 1}); // sort by sales on selected world
         return itemMedianData;
     }
+
+    // passed either NQ or HQ item median table
+    // compares with selected world (home world)
+    getLowestMedianSaleDataAndSelectedWorld(itemID, selectedWorld, quality) {
+        const hq = (quality == 'hq') ? 1 : 0;
+        const selectStatement = this.db.prepare(
+            `SELECT
+                item_sale_median_data_${quality}.itemID,
+                item_info.Name as itemName,
+                item_sale_median_data_${quality}.medianPrice, 
+                item_sale_median_data_${quality}.worldName, 
+                item_sale_median_data_${quality}.saleCount,
+                ${hq} as hq,
+                (SELECT medianPrice FROM item_sale_median_data_${quality} WHERE itemID = @itemID AND worldName = @selectedWorld) as selectedWorldMedian,
+                (SELECT saleCount FROM item_sale_median_data_${quality} WHERE itemID = @itemID AND worldName = @selectedWorld) as selectedSaleCount,
+                (SELECT SUM(quantity) FROM item_sale_history WHERE itemID = @itemID AND hq = ${hq} LIMIT 1) as quantitySold,
+                (SELECT AVG(quantity) FROM item_sale_history WHERE itemID = @itemID AND  hq = ${hq} LIMIT 1) as averageStackSize
+            FROM item_sale_median_data_${quality}
+            LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_${quality}.itemID
+            WHERE item_sale_median_data_${quality}.itemID = @itemID
+            ORDER BY medianPrice ASC LIMIT 1`
+        );
+
+        const itemLowestMedianAndSelectedWorld = selectStatement.get({itemID: itemID, selectedWorld: selectedWorld});
+        return itemLowestMedianAndSelectedWorld;
+    }
+
+    // add some calculated values to the item data
+    getCalculatedProfits(itemData) {
+        itemData.difference = Math.floor(itemData.selectedWorldMedian - itemData.medianPrice);
+        itemData.predictedTotalProfit = (itemData.averageStackSize * itemData.selectedWorldMedian) - (itemData.averageStackSize * itemData.medianPrice);
+        itemData.profitPercentage = Math.floor((itemData.difference / itemData.medianPrice) * 100);
+        return itemData;
+    }
+
+    // get all craftable
 
     // need to define our own sleep method since nodeJS doesn't have one...
     sleep(ms) {
