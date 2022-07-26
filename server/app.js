@@ -16,16 +16,23 @@ router.get('/', (ctx, next) => {
 });
 
 // Default response
-router.get('/test', (ctx, next) => {
-    market.updateMedianSalePrices();
+router.get('/api/test', (ctx, next) => {
+    // console.log(ctx.params.itemID);
+    // const result = market.getCraftedItemCostAndIngredients(ctx.params.itemID);
     market.calculateMedianSalePricesAndInsertToSQL();
-    ctx.body = 'testing';
+    ctx.body = result;
 });
 
 // api get median price for all items
 router.get('/api/getMedianSoldPrice/allItems/:worldID', async (ctx, next) => {
     const medianSoldPriceList = market.getMedianDifference(ctx.params.worldID);
     ctx.body = medianSoldPriceList;
+});
+
+// api get craftableItems
+router.get('/api/getCraftableItems/:dataCenterName', async (ctx, next) => {
+    const craftableItems = market.getCraftableItemsAndMedians(ctx.params.dataCenterName);
+    ctx.body = craftableItems;
 });
 
 // update item data... WARNING DO NOT DOTHIS UNLESS YOU REALLY NEED TO

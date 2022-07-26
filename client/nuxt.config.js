@@ -6,7 +6,7 @@ export default {
       lang: 'en'
     },
     bodyAttrs: {
-      class: ['bg-dark', 'text-white']
+      class: ['bg-light', 'text-black']
     },
     meta: [
       { charset: 'utf-8' },
@@ -18,6 +18,9 @@ export default {
       { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
     ]
   },
+
+  // turn off server side rendering
+  ssr: false,
 
   // Global CSS: https://go.nuxtjs.dev/config-css
   css: [
@@ -31,9 +34,13 @@ export default {
   components: true,
 
   // Modules for dev and build (recommended): https://go.nuxtjs.dev/config-modules
+  target: 'static',
   buildModules: [
+    '@nuxt/image'
   ],
-
+  image: {
+    // Options
+  },
   // Modules: https://go.nuxtjs.dev/config-modules
   modules: [
     // https://go.nuxtjs.dev/bootstrap

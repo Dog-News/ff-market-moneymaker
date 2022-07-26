@@ -36,44 +36,38 @@
         <br>
         <br>
 
-        <b-row>
-
-                <b-form-group
-                label="Filter"
-                label-for="filter-input"
-                label-cols-sm="3"
-                label-align-sm="right"
-                label-size="sm"
-                class="mb-0"
-                >
-                    <b-input-group size="sm">
-                        <b-form-input
-                            id="filter-input"
-                            v-model="filter"
-                            type="search"
-                            placeholder="Type to Search"
-                            debounce="1000"
-                        ></b-form-input>
-
-                        <b-input-group-append>
-                            <b-button :disabled="!filter" @click="filter = ''">Clear</b-button>
-                        </b-input-group-append>
-                    </b-input-group>
-                </b-form-group>
-
-        </b-row>
         <br>
         <div>{{ datadump }}</div>
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12 m-auto">
+                <div class="float-left">
+                    <b-form-group class="mb-0">
+                        <b-input-group size="sm">
+                            <b-form-input
+                                id="filter-input"
+                                v-model="filter"
+                                type="search"
+                                placeholder="Type to Search"
+                                debounce="1000"
+                            ></b-form-input>
+
+                            <b-input-group-append>
+                                <b-button :disabled="!filter" @click="filter = ''">Clear</b-button>
+                            </b-input-group-append>
+                        </b-input-group>
+                    </b-form-group>
+                </div>
+                <div class="float-right">
                     <b-pagination
                         v-model="currentPage"
                         :total-rows="totalRows"
                         :per-page="perPage"
                         aria-controls="item-table"
                     ></b-pagination>
-
+                </div>
+                </div>
+                <div class="col-md-12 m-auto">
                     <b-table 
                         id="item-table" 
                         :per-page="perPage" 
@@ -82,6 +76,7 @@
                         :fields="tableFields" 
                         :items="filteredMedianSaleData"
                         :filter="filter"
+                        :filter-included-fields="filterOn"
                         @filtered="onFiltered"
                     >
                         <template #thead-top="data">
@@ -92,6 +87,10 @@
 
                         <template #cell(itemID)="itemID">
                             <a :href="'https://universalis.app/market/' + itemID.value" :target="'_blank'">{{itemID.value}}</a>
+                        </template>
+
+                        <template #cell(hq)="hq">
+                            <img src="/images/hq.png" v-if="hq.value">
                         </template>
 
                         <template #cell(predictedTotalProfit)="predictedTotalProfit">
@@ -110,12 +109,16 @@
                             {{selectedWorldForData}}
                         </template>
                     </b-table>
-                    <b-pagination
-                        v-model="currentPage"
-                        :total-rows="totalRows"
-                        :per-page="perPage"
-                        aria-controls="item-table"
-                    ></b-pagination>
+                                    </div>
+                <div class="col-md-12 m-auto">
+                    <div class="float-right">
+                        <b-pagination
+                            v-model="currentPage"
+                            :total-rows="totalRows"
+                            :per-page="perPage"
+                            aria-controls="item-table"
+                        ></b-pagination>
+                    </div>
                     <!-- <table class="table table-bordered table-sm small table-dark">
                         <tr class="header bg-dark">
                             <th>#</th>
@@ -162,7 +165,7 @@ export default {
         return{
             tableFields: [
                 {key: "itemID", label: "Item ID", sortable: true},
-                {key: "hq", label: "Quality", sortable: true, class:"table-text-data", formatter: (value) => {return value ? 'HQ' : ''}},
+                {key: "hq", label: "Quality", sortable: true},
                 {key: "itemName", label: "Name", sortable: true, class:"table-text-data"},
                 {key: "predictedTotalProfit", label: "Total Profit", sortable: true, formatter: (value) => {return Math.floor(value)?.toLocaleString("en-US") + " ɢ"}},
                 {key: "difference", label: "Profit", sortable: true, formatter: (value) => {return Math.floor(value)?.toLocaleString("en-US")  + " ɢ"}},
@@ -183,7 +186,7 @@ export default {
             selectedWorldForData: null, // for displaying in the table after request
             totalRows: 0,
             currentPage: 1,
-            perPage: 10,
+            perPage: 50,
             filter: null,
             filterOn: ["name"]
         }
@@ -231,4 +234,14 @@ export default {
         border-left: 1px solid white;
     }
     .table.b-table.table-dark > thead > tr > .bg-b-table-default, .table.b-table.table-dark > tbody > tr > .bg-b-table-default, .table.b-table.table-dark > tfoot > tr > .bg-b-table-default { background-color: transparent; }
+    .pagination button, .pagination .page-item.disabled span { background: transparent; }
+    .pagination .page-item.disabled .page-link, .pagination .page-link { border-color: #454d55; }
+    .page-link { color: white; }
+    #filter-input { 
+        background-color: transparent;
+        border-color: #454d55; 
+        padding: 0.5rem 0.75rem;
+        color: white;
+        height: initial;
+    }
 </style>

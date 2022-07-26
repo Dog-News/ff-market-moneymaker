@@ -18,7 +18,8 @@ class MarketCalculator {
         this.item_limit = 50; // limit length of item list in URL
         this.rate_limit = 1000 // wait 1 second so we don't DDOS universalis
         this.entries_to_return = 999999; 
-        this.entries_within = 604800; // seconds
+        // this.entries_within = 604800; // 7 seconds
+        this.entries_within = 172800; // 2 days seconds
     }
 
     getWorldNameAndIDs() {
@@ -66,7 +67,7 @@ class MarketCalculator {
 
         // insert new data
         for (let item of saleData) {
-            const insertStatement = this.db.prepare('INSERT INTO item_sale_history VALUES(?,?,?,?,?,?,?,?,?)');
+            const insertStatement = this.db.prepare('INSERT INTO item_sale_history VALUES(?,?,?,?,?,?,?,?,?,?)');
             for (let entry of item.entries) {
                 const itemID = item.itemID || null;
                 const hq = entry.hq ? 1 : 0;
@@ -77,8 +78,9 @@ class MarketCalculator {
                 const timestamp = entry.timestamp || null;
                 const worldName = entry.worldName || null;
                 const worldID = entry.worldID || null;
+                const dataCenterName = item.dcName || null;
 
-                insertStatement.run(itemID, hq, pricePerUnit, quantity, buyerName, onMannequin, timestamp, worldName, worldID);
+                insertStatement.run(itemID, hq, pricePerUnit, quantity, buyerName, onMannequin, timestamp, worldName, worldID, dataCenterName);
             }
         }
         console.log("Updated sale data.");
@@ -109,10 +111,9 @@ class MarketCalculator {
         });
 
         console.log("Calculating new item median sale data...")
-        const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID, worldName FROM item_sale_history');
+        const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID, worldName, dataCenterName FROM item_sale_history');
         const itemList = selectStatement1.all();
 
-        // normal quality
         for (let item of itemList) {
             const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND worldName = ? ORDER BY pricePerUnit DESC');
             const worldSales = selectStatement2.all(item.itemID, item.worldName);
@@ -142,14 +143,14 @@ class MarketCalculator {
             
             // insert median data to SQL
             if (salesNQ.length > 0) {
-                const insertStatement1 = this.db.prepare('INSERT INTO item_sale_median_data_nq VALUES(?, ?, ?, ?)');
-                insertStatement1.run(item.itemID, Math.floor(medianNQ), item.worldName, NQSaleCount);
+                const insertStatement1 = this.db.prepare('INSERT INTO item_sale_median_data_nq VALUES(?, ?, ?, ?, ?)');
+                insertStatement1.run(item.itemID, Math.floor(medianNQ), item.worldName, NQSaleCount, item.dataCenterName);
                 console.log(`Inserted ${item.itemID} NQ median`);
             }
 
             if (salesHQ.length > 0) {
-                const insertStatement2 = this.db.prepare('INSERT INTO item_sale_median_data_hq VALUES(?, ?, ?, ?)');
-                insertStatement2.run(item.itemID, Math.floor(medianHQ), item.worldName, HQSaleCount);
+                const insertStatement2 = this.db.prepare('INSERT INTO item_sale_median_data_hq VALUES(?, ?, ?, ?, ?)');
+                insertStatement2.run(item.itemID, Math.floor(medianHQ), item.worldName, HQSaleCount, item.dataCenterName);
                 console.log(`Inserted ${item.itemID} HQ median`);
             }
         }
@@ -157,14 +158,14 @@ class MarketCalculator {
     }
 
     // get list of item IDs and the lowest median sale price/world
-    getMedianDifference(selectedWorld) {
+    getMedianDifference(selectedDataCenter) {
         const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID FROM item_sale_history');
         const itemList = selectStatement1.all(); // retrieve all item IDs
         const itemMedianData = [] // store results here
         
         for (let item of itemList) {
-            const itemLowestMedianNormalQuality = this.getLowestMedianSaleDataAndSelectedWorld(item.itemID, selectedWorld, 'nq');
-            const itemLowestMedianHighQuality = this.getLowestMedianSaleDataAndSelectedWorld(item.itemID, selectedWorld, 'hq');
+            const itemLowestMedianNormalQuality = this.getLowestMedianSaleDataAndselectedDataCenter(item.itemID, selectedDataCenter, 'nq');
+            const itemLowestMedianHighQuality = this.getLowestMedianSaleDataAndselectedDataCenter(item.itemID, selectedDataCenter, 'hq');
 
             if (!!itemLowestMedianNormalQuality) {
                 itemMedianData.push(this.getCalculatedProfits(itemLowestMedianNormalQuality));
@@ -182,18 +183,19 @@ class MarketCalculator {
 
     // passed either NQ or HQ item median table
     // compares with selected world (home world)
-    getLowestMedianSaleDataAndSelectedWorld(itemID, selectedWorld, quality) {
+    getLowestMedianSaleDataAndselectedDataCenter(itemID, selectedDataCenter, quality) {
         const hq = (quality == 'hq') ? 1 : 0;
         const selectStatement = this.db.prepare(
             `SELECT
                 item_sale_median_data_${quality}.itemID,
                 item_info.Name as itemName,
                 item_sale_median_data_${quality}.medianPrice, 
-                item_sale_median_data_${quality}.worldName, 
+                item_sale_median_data_${quality}.worldName,
+                item_sale_median_data_${quality}.dataCenterName,
                 item_sale_median_data_${quality}.saleCount,
                 ${hq} as hq,
-                (SELECT medianPrice FROM item_sale_median_data_${quality} WHERE itemID = @itemID AND worldName = @selectedWorld) as selectedWorldMedian,
-                (SELECT saleCount FROM item_sale_median_data_${quality} WHERE itemID = @itemID AND worldName = @selectedWorld) as selectedSaleCount,
+                (SELECT medianPrice FROM item_sale_median_data_${quality} WHERE itemID = @itemID AND dataCenterName = @selectedDataCenter) as selectedDataCenterMedian,
+                (SELECT saleCount FROM item_sale_median_data_${quality} WHERE itemID = @itemID AND dataCenterName = @selectedDataCenter) as selectedSaleCount,
                 (SELECT SUM(quantity) FROM item_sale_history WHERE itemID = @itemID AND hq = ${hq} LIMIT 1) as quantitySold,
                 (SELECT AVG(quantity) FROM item_sale_history WHERE itemID = @itemID AND  hq = ${hq} LIMIT 1) as averageStackSize
             FROM item_sale_median_data_${quality}
@@ -202,19 +204,180 @@ class MarketCalculator {
             ORDER BY medianPrice ASC LIMIT 1`
         );
 
-        const itemLowestMedianAndSelectedWorld = selectStatement.get({itemID: itemID, selectedWorld: selectedWorld});
-        return itemLowestMedianAndSelectedWorld;
+        const itemLowestMedianAndselectedDataCenter = selectStatement.get({itemID: itemID, selectedDataCenter: selectedDataCenter});
+        return itemLowestMedianAndselectedDataCenter;
+    }
+
+    // get median sale data for selected world
+    // for specified quality
+    getMedianSaleDataForselectedDataCenter(itemID, selectedDataCenter, quality) {
+        const hq = (quality == 'hq') ? 1 : 0;
+        const selectStatement = this.db.prepare(
+            `SELECT
+                medianPrice as medianSalePrice,
+                worldName,
+                dataCenterName,
+                ${hq} as hq
+            FROM item_sale_median_data_${quality}
+            WHERE itemID = @itemID AND dataCenterName = @selectedDataCenter
+            ORDER BY medianPrice ASC LIMIT 1`
+        );
+
+        const itemMedianSaleData = selectStatement.get({itemID: itemID, selectedDataCenter: selectedDataCenter});
+        return itemMedianSaleData;
     }
 
     // add some calculated values to the item data
     getCalculatedProfits(itemData) {
-        itemData.difference = Math.floor(itemData.selectedWorldMedian - itemData.medianPrice);
-        itemData.predictedTotalProfit = (itemData.averageStackSize * itemData.selectedWorldMedian) - (itemData.averageStackSize * itemData.medianPrice);
+        itemData.difference = Math.floor(itemData.selectedDataCenterMedian - itemData.medianPrice);
+        itemData.predictedTotalProfit = (itemData.averageStackSize * itemData.selectedDataCenterMedian) - (itemData.averageStackSize * itemData.medianPrice);
         itemData.profitPercentage = Math.floor((itemData.difference / itemData.medianPrice) * 100);
         return itemData;
     }
 
-    // get all craftable
+    // get HQ or NQ profit percentage when crafting the item
+    getCraftingProfitPercentage(totalCraftCost, salePrice) {
+        if (salePrice === 0) {
+            return 0;
+        };
+        return Math.floor(((salePrice - totalCraftCost) / salePrice) * 100);
+    }
+
+    // get all craftable items which are marketable
+    // and median sale value on selected world
+    getCraftableItemsAndMedians(selectedDataCenter) {
+        const selectStatement = this.db.prepare(`
+            SELECT DISTINCT 
+                item_recipes.[Item{Result}] as itemID,
+                item_info.Name as itemName
+            FROM item_recipes 
+            LEFT JOIN item_info ON item_info.itemID = item_recipes.[Item{Result}]
+            WHERE [Item{Result}] <> 0`
+        );
+        const craftableItems = selectStatement.all();
+        let craftableItemsWithMedianData = []
+        for (let item of craftableItems) {
+            const normalQualityMedianData = this.getMedianSaleDataForselectedDataCenter(item.itemID, selectedDataCenter, 'nq');
+            const highQualityMedianData = this.getMedianSaleDataForselectedDataCenter(item.itemID, selectedDataCenter, 'hq');
+            const recipes = this.getCraftedItemCostAndIngredients(item.itemID);
+            const craftTypes = recipes.map((recipe) => {return recipe.craftType});
+            const totalCraftCost = this.getTotalCraftCost(recipes);
+            const hqVolume = this.getItemSaleVolume(item.itemID, 'hq', selectedDataCenter);
+            const nqVolume = this.getItemSaleVolume(item.itemID, 'nq', selectedDataCenter);
+            if (!!normalQualityMedianData) {
+                craftableItemsWithMedianData.push(this.formatCraftableItemData(item, selectedDataCenter, normalQualityMedianData.medianSalePrice, recipes, craftTypes, totalCraftCost, nqVolume, 'nq'));
+            }
+            if (!!highQualityMedianData) {
+                craftableItemsWithMedianData.push(this.formatCraftableItemData(item, selectedDataCenter, highQualityMedianData.medianSalePrice, recipes, craftTypes, totalCraftCost, hqVolume, 'hq'));
+            }
+        }
+        return craftableItemsWithMedianData;
+    }
+
+    // return in format needed to display on craftable items page
+    formatCraftableItemData(item, selectedDataCenter, medianSalePrice, recipes, craftTypes, totalCraftCost, volume, quality) {
+        const craftableItem = {
+            itemID: item.itemID,
+            itemName: item.itemName,
+            profit: (medianSalePrice || 0) - (totalCraftCost || 0),
+            selectedDataCenter: selectedDataCenter,
+            medianSalePrice: medianSalePrice || 0,
+            totalCraftCost: totalCraftCost,
+            profitPercentage: this.getCraftingProfitPercentage(totalCraftCost, (medianSalePrice || 0)),
+            volume: volume,
+            craftTypes: craftTypes,
+            recipes: recipes,
+            hq: (quality === 'hq') ? 1 : 0
+            // hqProfit: (highQualityMedianData?.medianSalePrice || 0) - (totalCraftCost || 0),
+            // nqProfit: (normalQualityMedianData?.medianSalePrice || 0) - (totalCraftCost || 0),
+            // hqMedianSalePrice: highQualityMedianData?.medianSalePrice || 0,
+            // nqMedianSalePrice: normalQualityMedianData?.medianSalePrice || 0,
+            // hqProfitPercentage: this.getCraftingProfitPercentage(totalCraftCost, (highQualityMedianData?.medianSalePrice || 0)),
+            // nqProfitPercentage: this.getCraftingProfitPercentage(totalCraftCost, (normalQualityMedianData?.medianSalePrice || 0)),
+        };
+
+        return craftableItem;
+    }
+
+    // calculate cost to craft each item'
+    getCraftedItemCostAndIngredients(itemID) {
+        const selectStatement = this.db.prepare(`SELECT *, craft_type.Name as craftTypeName FROM item_recipes LEFT JOIN craft_type ON craft_type.craftTypeID = item_recipes.CraftType WHERE [Item{Result}] = @itemID`);
+        const itemRecipes = selectStatement.all({itemID: itemID});
+        const ingredientInfo = []
+        for (let recipe of itemRecipes) {
+            const craftType = recipe.craftTypeName;
+            let ingredients = [];
+            const maxIngredients = 9;
+            for (let i = 0; i<=maxIngredients; i++) {
+                if (recipe[`Item{Ingredient}[${i}]`] > 0) {
+                    const ingredientItemID = recipe[`Item{Ingredient}[${i}]`];
+                    const ingredientAmount = recipe[`Amount{Ingredient}[${i}]`];
+                    ingredients.push(this.getIngedientCost(ingredientItemID, ingredientAmount));
+                }
+            }
+            ingredientInfo.push({craftType: craftType, ingredients: ingredients});
+        }
+        return ingredientInfo;
+    }
+
+    getTotalCraftCost(recipes) {
+        // loop through each recipe and then get the cheapest to craft
+        // note: some items can be crafted multiple ways, hence why we use array here
+        let recipeCosts = [];
+        for (let recipe of recipes) {
+            let totalRecipeCost = 0;
+            for (let ingredient of recipe.ingredients) {
+                totalRecipeCost += ingredient.predictedCost || 0;
+            }
+            recipeCosts.push(totalRecipeCost);
+        }
+        return Math.min(...recipeCosts);
+    }
+
+    // get quantity of items sold
+    // ignore HQ vs. NQ for now...
+    getItemSaleVolume(itemID, quality, selectedDataCenter) {
+        const selectStatement = this.db.prepare(`SELECT SUM(quantity) as totalQuantity FROM item_sale_history WHERE itemID = @itemID AND hq = @quality AND dataCenterName = @selectedDataCenter LIMIT 1`);
+        const volume = selectStatement.get({itemID: itemID, quality: quality === 'hq' ? 1 : 0, selectedDataCenter});
+        return volume.totalQuantity;
+    }
+
+    getIngedientCost(ingredientItemID, ingredientAmount) {
+        const selectStatement = this.db.prepare(`
+            SELECT
+                item_sale_median_data_hq.itemID,
+                item_info.Name as itemName,
+                item_sale_median_data_hq.medianPrice, 
+                item_sale_median_data_hq.worldName, 
+                item_sale_median_data_hq.saleCount,
+                1 as hq
+            FROM item_sale_median_data_hq
+            LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_hq.itemID
+            WHERE item_sale_median_data_hq.itemID = @itemID
+            UNION ALL
+            SELECT
+                item_sale_median_data_nq.itemID,
+                item_info.Name as itemName,
+                item_sale_median_data_nq.medianPrice, 
+                item_sale_median_data_nq.worldName, 
+                item_sale_median_data_nq.saleCount,
+                0 as hq
+            FROM item_sale_median_data_nq
+            LEFT JOIN item_info ON item_info.itemID = item_sale_median_data_nq.itemID
+            WHERE item_sale_median_data_nq.itemID = @itemID
+            ORDER BY medianPrice ASC LIMIT 1`
+        );
+        const ingredientInfo = selectStatement.get({itemID: ingredientItemID});
+        return {
+            itemID: ingredientItemID,
+            itemName: ingredientInfo?.itemName || null,
+            lowestMedianPrice: ingredientInfo?.medianPrice || 0,
+            lowestMedianWorld: ingredientInfo?.worldName || null,
+            ingredientAmount: ingredientAmount,
+            predictedCost: Math.floor((ingredientInfo?.medianPrice || 0) * ingredientAmount),
+            hq: ingredientInfo?.hq || null
+        }
+    }
 
     // need to define our own sleep method since nodeJS doesn't have one...
     sleep(ms) {
