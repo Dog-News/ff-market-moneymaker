@@ -111,17 +111,19 @@ class MarketCalculator {
         });
 
         console.log("Calculating new item median sale data...")
-        const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID, worldName, dataCenterName FROM item_sale_history');
+        // const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID, worldName, dataCenterName FROM item_sale_history');
+        const selectStatement1 = this.db.prepare('SELECT DISTINCT itemID, dataCenterName FROM item_sale_history');
         const itemList = selectStatement1.all();
 
         for (let item of itemList) {
-            const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND worldName = ? ORDER BY pricePerUnit DESC');
-            const worldSales = selectStatement2.all(item.itemID, item.worldName);
+            // const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND worldName = ? ORDER BY pricePerUnit DESC');
+            const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND dataCenterName = ? ORDER BY pricePerUnit DESC');
+            const dataCenterSales = selectStatement2.all(item.itemID, item.dataCenterName);
             let salesNQ = [];
             let salesHQ = [];
             let NQSaleCount = 0;
             let HQSaleCount = 0;
-            for (let sale of worldSales) {
+            for (let sale of dataCenterSales) {
                 if (sale.hq) {
                     salesHQ.push(sale.pricePerUnit);
                     HQSaleCount++;
@@ -143,14 +145,14 @@ class MarketCalculator {
             
             // insert median data to SQL
             if (salesNQ.length > 0) {
-                const insertStatement1 = this.db.prepare('INSERT INTO item_sale_median_data_nq VALUES(?, ?, ?, ?, ?)');
-                insertStatement1.run(item.itemID, Math.floor(medianNQ), item.worldName, NQSaleCount, item.dataCenterName);
+                const insertStatement1 = this.db.prepare('INSERT INTO item_sale_median_data_nq VALUES(?, ?, ?, ?)');
+                insertStatement1.run(item.itemID, item.dataCenterName, Math.floor(medianNQ), NQSaleCount);
                 console.log(`Inserted ${item.itemID} NQ median`);
             }
 
             if (salesHQ.length > 0) {
-                const insertStatement2 = this.db.prepare('INSERT INTO item_sale_median_data_hq VALUES(?, ?, ?, ?, ?)');
-                insertStatement2.run(item.itemID, Math.floor(medianHQ), item.worldName, HQSaleCount, item.dataCenterName);
+                const insertStatement2 = this.db.prepare('INSERT INTO item_sale_median_data_hq VALUES(?, ?, ?, ?)');
+                insertStatement2.run(item.itemID, item.dataCenterName, Math.floor(medianHQ), HQSaleCount);
                 console.log(`Inserted ${item.itemID} HQ median`);
             }
         }
@@ -190,7 +192,7 @@ class MarketCalculator {
                 item_sale_median_data_${quality}.itemID,
                 item_info.Name as itemName,
                 item_sale_median_data_${quality}.medianPrice, 
-                item_sale_median_data_${quality}.worldName,
+                --item_sale_median_data_${quality}.worldName,
                 item_sale_median_data_${quality}.dataCenterName,
                 item_sale_median_data_${quality}.saleCount,
                 ${hq} as hq,
@@ -215,7 +217,7 @@ class MarketCalculator {
         const selectStatement = this.db.prepare(
             `SELECT
                 medianPrice as medianSalePrice,
-                worldName,
+                --worldName,
                 dataCenterName,
                 ${hq} as hq
             FROM item_sale_median_data_${quality}
@@ -261,21 +263,43 @@ class MarketCalculator {
             const highQualityMedianData = this.getMedianSaleDataForselectedDataCenter(item.itemID, selectedDataCenter, 'hq');
             const recipes = this.getCraftedItemCostAndIngredients(item.itemID);
             const craftTypes = recipes.map((recipe) => {return recipe.craftType});
+            const hqAvgStackSize = this.getItemAvgStackSize(item.itemID, 'hq', selectedDataCenter);
+            const nqAvgStackSize = this.getItemAvgStackSize(item.itemID, 'nq', selectedDataCenter);
             const totalCraftCost = this.getTotalCraftCost(recipes);
             const hqVolume = this.getItemSaleVolume(item.itemID, 'hq', selectedDataCenter);
             const nqVolume = this.getItemSaleVolume(item.itemID, 'nq', selectedDataCenter);
             if (!!normalQualityMedianData) {
-                craftableItemsWithMedianData.push(this.formatCraftableItemData(item, selectedDataCenter, normalQualityMedianData.medianSalePrice, recipes, craftTypes, totalCraftCost, nqVolume, 'nq'));
+                craftableItemsWithMedianData.push(this.formatCraftableItemData(
+                    item, 
+                    selectedDataCenter, 
+                    Math.floor(normalQualityMedianData.medianSalePrice * nqAvgStackSize),  // medianSalePrice
+                    recipes, 
+                    craftTypes, 
+                    Math.floor(totalCraftCost * nqAvgStackSize), // totalCraftCost
+                    nqVolume, 
+                    Math.floor(nqAvgStackSize), // average stack size
+                    'nq'
+                ));
             }
             if (!!highQualityMedianData) {
-                craftableItemsWithMedianData.push(this.formatCraftableItemData(item, selectedDataCenter, highQualityMedianData.medianSalePrice, recipes, craftTypes, totalCraftCost, hqVolume, 'hq'));
+                craftableItemsWithMedianData.push(this.formatCraftableItemData(
+                    item, 
+                    selectedDataCenter, 
+                    Math.floor(highQualityMedianData.medianSalePrice * hqAvgStackSize), // medianSalePrice
+                    recipes, 
+                    craftTypes, 
+                    Math.floor(totalCraftCost * hqAvgStackSize), // totalCraftCost
+                    hqVolume, 
+                    Math.floor(hqAvgStackSize), // average stack size
+                    'hq'
+                ));
             }
         }
         return craftableItemsWithMedianData;
     }
 
     // return in format needed to display on craftable items page
-    formatCraftableItemData(item, selectedDataCenter, medianSalePrice, recipes, craftTypes, totalCraftCost, volume, quality) {
+    formatCraftableItemData(item, selectedDataCenter, medianSalePrice, recipes, craftTypes, totalCraftCost, volume, avgStackSize, quality) {
         const craftableItem = {
             itemID: item.itemID,
             itemName: item.itemName,
@@ -285,6 +309,7 @@ class MarketCalculator {
             totalCraftCost: totalCraftCost,
             profitPercentage: this.getCraftingProfitPercentage(totalCraftCost, (medianSalePrice || 0)),
             volume: volume,
+            avgStackSize: avgStackSize,
             craftTypes: craftTypes,
             recipes: recipes,
             hq: (quality === 'hq') ? 1 : 0
@@ -342,13 +367,20 @@ class MarketCalculator {
         return volume.totalQuantity;
     }
 
+    getItemAvgStackSize(itemID, quality, selectedDataCenter) {
+        const selectStatement = this.db.prepare(`SELECT AVG(quantity) as avgStackSize FROM item_sale_history WHERE itemID = @itemID AND hq = @quality AND dataCenterName = @selectedDataCenter LIMIT 1`);
+        const avgStackSize = selectStatement.get({itemID: itemID, quality: quality === 'hq' ? 1 : 0, selectedDataCenter});
+        return avgStackSize.avgStackSize;
+    }
+
     getIngedientCost(ingredientItemID, ingredientAmount) {
         const selectStatement = this.db.prepare(`
             SELECT
                 item_sale_median_data_hq.itemID,
                 item_info.Name as itemName,
                 item_sale_median_data_hq.medianPrice, 
-                item_sale_median_data_hq.worldName, 
+                --item_sale_median_data_hq.worldName, 
+                item_sale_median_data_hq.dataCenterName, 
                 item_sale_median_data_hq.saleCount,
                 1 as hq
             FROM item_sale_median_data_hq
@@ -359,7 +391,8 @@ class MarketCalculator {
                 item_sale_median_data_nq.itemID,
                 item_info.Name as itemName,
                 item_sale_median_data_nq.medianPrice, 
-                item_sale_median_data_nq.worldName, 
+                --item_sale_median_data_nq.worldName, 
+                item_sale_median_data_nq.dataCenterName, 
                 item_sale_median_data_nq.saleCount,
                 0 as hq
             FROM item_sale_median_data_nq
@@ -372,7 +405,7 @@ class MarketCalculator {
             itemID: ingredientItemID,
             itemName: ingredientInfo?.itemName || null,
             lowestMedianPrice: ingredientInfo?.medianPrice || 0,
-            lowestMedianWorld: ingredientInfo?.worldName || null,
+            lowestMedianWorld: ingredientInfo?.dataCenterName || null,
             ingredientAmount: ingredientAmount,
             predictedCost: Math.floor((ingredientInfo?.medianPrice || 0) * ingredientAmount),
             hq: ingredientInfo?.hq || null

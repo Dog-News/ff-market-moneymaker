@@ -24,8 +24,8 @@ router.get('/api/test', (ctx, next) => {
 });
 
 // api get median price for all items
-router.get('/api/getMedianSoldPrice/allItems/:worldID', async (ctx, next) => {
-    const medianSoldPriceList = market.getMedianDifference(ctx.params.worldID);
+router.get('/api/getMedianSoldPrice/allItems/:dataCenterName', async (ctx, next) => {
+    const medianSoldPriceList = market.getMedianDifference(ctx.params.dataCenterName);
     ctx.body = medianSoldPriceList;
 });
 

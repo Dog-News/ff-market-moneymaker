@@ -84,7 +84,7 @@
                                 </b-form-group>
                             </b-dropdown-form>
                         </b-dropdown>
-                        <b-button class="ml-1" @click="craftTypeFilter = []; minVolumeFilter = null; minProfitFilter = null; minProfitPercentFilter = null;">Clear Filters</b-button>
+                        <b-button class="ml-1" @click="itemNameFilter = null; craftTypeFilter = []; minVolumeFilter = null; minProfitFilter = null; minProfitPercentFilter = null;">Clear Filters</b-button>
                     </div>
                     
                     </div>
@@ -204,7 +204,8 @@ export default {
                 // {key: "hq", label: "Quality", sortable: true},
                 // {key: "itemName", label: "Name", sortable: true, class:["table-text-data", "item-name-col"]},
                 {key: 'itemName', class: "item-name", sortable: true},
-                {key: "volume", label: "Volume", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
+                {key: "volume", label: "Vol", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
+                {key: "avgStackSize",  label:"Stack", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
                 {key: "totalCraftCost", label: "Cost", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")  + " ɢ"}},
                 {key: "medianSalePrice", label: "Sells", sortable: true, class: "world-heading", formatter: (value, key, item) => {return item.medianSalePrice != 0 ? value.toLocaleString("en-US")  + " ɢ" : ''}},
                 {key: "profit", label: "Profit", class: "font-weight-bold", sortable: true, formatter: (value, key, item) => {return item.medianSalePrice != 0 ? value.toLocaleString("en-US")  + " ɢ" : ''}},
