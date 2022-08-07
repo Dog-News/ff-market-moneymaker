@@ -1,6 +1,6 @@
 const Axios = require('axios');
 const axiosRetry = require('axios-retry');
-const item_ids = require('./item_ids.json');
+const item_ids = require('../item_ids.json');
 const sqlite3 = require('better-sqlite3');
 
 class MarketCalculator { 
@@ -12,7 +12,7 @@ class MarketCalculator {
             "Crystal",
             "Aether"
         ];
-        this.db = new sqlite3('./database/ffmarket.db');
+        this.db = new sqlite3('../database/ffmarket.db');
         this.db.pragma('journal_mode = WAL');
         this.worlds = this.getWorldNameAndIDs();
         this.item_limit = 50; // limit length of item list in URL

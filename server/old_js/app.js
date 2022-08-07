@@ -1,4 +1,4 @@
-const MarketCalculator = require('./market-calculator');
+const MarketCalculator = require('./market-calculator.js');
 const market = new MarketCalculator();
 const Koa = require('koa');
 const cors = require('@koa/cors');
