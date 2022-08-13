@@ -98,19 +98,24 @@
                         :filter-included-fields="filterOn"
                         :tdClass="styleTableDataCell"
                     -->
+
+
+
+
+
                     <b-table 
                         id="item-table" 
                         hover
                         class="bg-light"
-                        selectable
                         :per-page="perPage" 
                         :current-page="currentPage" 
                         :fields="tableFields" 
                         :items="filteredCraftableItems"
                         sort-direction="desc"
-                        @row-clicked="item=>$set(item, '_showDetails', !item._showDetails)"
+                        @row-clicked="(item) => {modalData = item; $bvModal.show('bv-modal-example')}"
 
                     >
+                    
                     <!--
                         <template #thead-top="data">
                             <b-th colspan="3" class="top-heading">Item Info</b-th>
@@ -164,6 +169,10 @@
                         </template>
       
                         <template #row-details="row">
+
+
+
+
                             <b-card>
                                 <table v-for="(recipe, index) in row.item.recipes" class="mr-4 mb-4">
                                     <tr><th colspan="4" class="text-left">{{recipe.craftType}}</th></tr>
@@ -179,6 +188,43 @@
 
                     </b-table>
                                     </div>
+
+<button @click="$bvModal.show('bv-modal-example')">Test</button>
+  <b-modal id="bv-modal-example" size="lg" centered hide-footer>
+    <template #modal-title>
+      Using <code>$bvModal</code> Methods
+    </template>
+    <div class="d-block text-center">
+        <b-card>
+        <div class="row">
+        <div class="col-6">
+            <table v-for="(recipe, index) in modalData?.recipes" class="mr-4 mb-4">
+                <tr><th colspan="4" class="text-left">{{recipe.craftType}}</th></tr>
+                <tr v-for="item in recipe.ingredients">
+                <td><a :href="'https://universalis.app/market/' + item.itemID" :target="'_blank'">{{item.itemID}}</a></td>
+                <td class="text-left">{{item.itemName}}</td>
+                <td>{{item.lowestMedianPrice}} ɢ</td>
+                <td>x {{item.ingredientAmount}}</td>
+                </tr>
+            </table>
+            </div>
+            <div class="col-6">
+            <table v-for="(recipe, index) in modalData?.recipes" class="mr-4 mb-4">
+                <tr><th colspan="4" class="text-left">{{recipe.craftType}}</th></tr>
+                <tr v-for="item in recipe.ingredients">
+                <td><a :href="'https://universalis.app/market/' + item.itemID" :target="'_blank'">{{item.itemID}}</a></td>
+                <td class="text-left">{{item.itemName}}</td>
+                <td>{{item.lowestMedianPrice}} ɢ</td>
+                <td>x {{item.ingredientAmount}}</td>
+                </tr>
+            </table>
+            </div>
+            </div>
+        </b-card>
+    </div>
+    <b-button class="mt-3 btn btn-primary" block @click="$bvModal.hide('bv-modal-example')">Update</b-button>
+  </b-modal>
+
                 <div class="col-md-12 m-auto">
                     <div class="float-right">
                         <b-pagination
@@ -230,7 +276,8 @@ export default {
             minVolumeFilter: null,
             minProfitFilter: null,
             minProfitPercentFilter: null,
-            filterOn: ["itemName", "craftTypes"]
+            filterOn: ["itemName", "craftTypes"],
+            modalData: null
         }
     },
     async mounted() {

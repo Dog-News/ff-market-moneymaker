@@ -1,11 +1,14 @@
+import { KeyFormat } from 'crypto';
 import {MarketCalculator} from './market-calculator';
 import Koa from 'koa';
+import { Socket, Server } from 'socket.io';
 const Router = require('koa-router');
 const koaCors = require('@koa/cors');
 const app = new Koa();
 const router = new Router();
 const market = new MarketCalculator();
-
+const server = require('http').Server(app.callback());
+const io : Server = require ('socket.io')(server, {cors: true});
 /**************************************************************************
  ************* API routes *************************************************
 **************************************************************************/
@@ -38,10 +41,26 @@ router.get('/api/getCraftableItems/:dataCenterName', async (ctx: Koa.Context, ne
 // update item data... WARNING DO NOT DOTHIS UNLESS YOU REALLY NEED TO
 router.get('/api/updateSaleData', async (ctx: Koa.Context, next: Function) => {
     console.log("Updating sale history data...THIS MAY TAKE A WHILE!");
-    ctx.body = await market.updateItemSaleHistory();
+    ctx.body = await market.updateItemSaleHistory(io);
 });
+
+
+io.on('connection', (socket: Socket) => {
+    console.log("a user connected");
+
+    socket.on('join', (room: string) => {
+        socket.join(room);
+        console.log("joined admin channel");
+    });
+
+    socket.on('update-data', () => {
+        market.updateItemSaleHistory(io);
+    });
+})
 
 app.use(koaCors());
 app.use(router.routes());
 app.use(router.allowedMethods());
-app.listen(4000);    
+// app.listen(4000);    
+// use 'server' here so socket.io works
+server.listen(4000);

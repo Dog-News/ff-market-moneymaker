@@ -1,7 +1,8 @@
 import Axios from 'axios';
 import axiosRetry from 'axios-retry';
 import sqlite3 from 'better-sqlite3';
-const item_ids = require('./item_ids.json');
+import { Server } from 'socket.io';
+import item_ids from './item_ids.json';
 
 interface IMarketBoardSettings {
     baseURL: string
@@ -122,6 +123,12 @@ interface ICraftableItemMedianData {
     hq: boolean
 }
 
+interface IUpdateProgress {
+    currentStepName: string
+    currentStepValue: number
+    overallMax: number
+}
+
 export class MarketCalculator implements IMarketBoardSettings { 
     baseURL: string
     dataCenters: string[]
@@ -149,12 +156,15 @@ export class MarketCalculator implements IMarketBoardSettings {
     }
    
     // Deletes data from local SQL and replaces with new data
-    async updateItemSaleHistory(): Promise<string> {
-        const saleHistory: IUniversalisItemHistoryResponse[] = await this.getItemSaleHistoryFromUniversalis();
+    async updateItemSaleHistory(io: Server): Promise<string> {
+        // query Universalis for new sale history data
+        io.to('admin').emit('update-status', "Getting sale history from Universalis...");
+        const saleHistory: IUniversalisItemHistoryResponse[] = await this.getItemSaleHistoryFromUniversalis(io);
 
         // delete old item sale history to SQL
         this.deleteItemSaleHistoryFromSQL();
 
+        io.to('admin').emit('update-status', "Inserting new item sale history data to SQL...");
         // insert new item sale history to SQL
         this.insertNewSaleDataToSQL(saleHistory);
         console.log("Updated item sale history.");
@@ -165,6 +175,7 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.deleteItemSaleMediansFromSQL('hq');
 
         // calculate and insert new median data to SQL
+        io.to('admin').emit('update-status', "Calculating new median data...");
         this.calculateMedianSalePricesAndInsertToSQL();
         return "done";
     }
@@ -224,8 +235,8 @@ export class MarketCalculator implements IMarketBoardSettings {
         for (let item of itemList) {
             const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND dataCenterName = ? ORDER BY pricePerUnit DESC');
             const dataCenterSales = selectStatement2.all(item.itemID, item.dataCenterName);
-            let salesNQ: IPricePerUnitAndQuality[] = [];
-            let salesHQ: IPricePerUnitAndQuality[] = [];
+            let salesNQ: number[] = [];
+            let salesHQ: number[] = [];
             let NQSaleCount = 0;
             let HQSaleCount = 0;
             for (let sale of dataCenterSales) {
@@ -254,10 +265,10 @@ export class MarketCalculator implements IMarketBoardSettings {
         return "done";
     }
 
-    private getDataCenterItemSaleMedian(sales: IPricePerUnitAndQuality[]): number {
+    private getDataCenterItemSaleMedian(sales: number[]): number {
         let mid = Math.floor(sales.length / 2);
-        let nums = [...sales].sort((a, b) => a.pricePerUnit - b.pricePerUnit);
-        const median : number = sales.length % 2 !== 0 ? nums[mid].pricePerUnit : (nums[mid - 1].pricePerUnit + nums[mid].pricePerUnit) / 2;
+        let nums = [...sales].sort((a, b) => a - b);
+        const median = sales.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
         return median;
     }
 
@@ -271,22 +282,29 @@ export class MarketCalculator implements IMarketBoardSettings {
         return worldDataFormatted;
     }
 
-    private async getItemSaleHistoryFromUniversalis(): Promise<IUniversalisItemHistoryResponse[]> {
+    private async getItemSaleHistoryFromUniversalis(io: Server): Promise<IUniversalisItemHistoryResponse[]> {
         const saleHistory: IUniversalisItemHistoryResponse[] = [];
+        let overallItemCount: number = item_ids.length * this.dataCenters.length // total amount of items across all data centers
+        let overallProgress: number = 0;
         for (let dataCenter of this.dataCenters) {
             // temporary array, remove IDs from this to avoid rate limit on universalis API
             const idArray: number[] = item_ids.slice();
+            const totalItemCount: number = idArray.length;
+            let currDataCenterItemNum: number = 0;
             axiosRetry(Axios, {
                 retries: 20,
                 retryDelay: () => { return 1000 * 5; },
                 retryCondition: (error) => {
                     return error?.response?.status != 200 || true;
-                }
+                },
+                shouldResetTimeout: true,
+                
             });
             while (idArray.length > 0) {
                 let urlItemList: number[] = [];
                 for (let i = 0; i < this.item_limit; i++) {
                     urlItemList.push(idArray.pop()!);
+                    currDataCenterItemNum++;
                 }
                 let requestURL = `${this.baseURL}/${dataCenter}/${urlItemList.toString()}?entriesToReturn=${this.entries_to_return}&entriesWithin=${this.entries_within}`;
                 console.log(requestURL);
@@ -298,6 +316,7 @@ export class MarketCalculator implements IMarketBoardSettings {
                 for (const item in response.data.items) {
                     saleHistory.push(response.data.items[item]);
                 }
+                io.to('admin').emit('update-status', `${dataCenter}: ${currDataCenterItemNum} / ${totalItemCount}`);
                 this.sleep(this.rate_limit);
             }
         }
@@ -406,7 +425,7 @@ export class MarketCalculator implements IMarketBoardSettings {
                 item_info.Name as itemName
             FROM item_recipes 
             LEFT JOIN item_info ON item_info.itemID = item_recipes.[Item{Result}]
-            WHERE [Item{Result}] <> 0`
+            WHERE [Item{Result}] <> 0 LIMIT 100`
         );
         const craftableItems: ICraftableItem[] = selectStatement.all();
         let craftableItemsWithMedianData: ICraftableItemMedianData[] = []
@@ -562,5 +581,9 @@ export class MarketCalculator implements IMarketBoardSettings {
     // need to define our own sleep method since nodeJS doesn't have one...
     private sleep(ms: number | undefined): Promise<unknown> {
         return new Promise(r => setTimeout(r, ms));
+    }
+
+    private updateAdminProgress() {
+
     }
 }
