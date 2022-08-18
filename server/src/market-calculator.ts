@@ -124,9 +124,11 @@ interface ICraftableItemMedianData {
 }
 
 interface IUpdateProgress {
-    currentStepName: string
-    currentStepValue: number
-    overallMax: number
+    currentStepName?: string
+    currentStepNameText?: string
+    currentStepValue?: number
+    overallMax?: number
+    descriptionText?: string
 }
 
 export class MarketCalculator implements IMarketBoardSettings { 
@@ -138,6 +140,9 @@ export class MarketCalculator implements IMarketBoardSettings {
     rate_limit: number
     entries_to_return: number
     entries_within: number
+    updateProgress: IUpdateProgress
+    processStarted: boolean
+    itemIDarray: number[]
 
     constructor() {
         this.baseURL = "https://universalis.app/api/v2/history";
@@ -150,41 +155,61 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.db.pragma('journal_mode = WAL');
         this.worlds = this.getWorldNameAndIDs();
         this.item_limit = 50; // limit length of item list in URL
-        this.rate_limit = 1000 // wait 1 second so we don't DDOS universalis
+        this.rate_limit = 20; // wait so we don't DDOS universalis
         this.entries_to_return = 999999; 
         this.entries_within = 172800; // 2 days in seconds
+        this.updateProgress = {
+            currentStepName: null,
+            currentStepNameText: null,
+            currentStepValue: null,
+            overallMax: item_ids.length * this.dataCenters.length * 3 // # of items x # of DC's x # of steps (3)
+        }
+        this.processStarted = false;
+        this.itemIDarray = item_ids.slice();
     }
    
     // Deletes data from local SQL and replaces with new data
-    async updateItemSaleHistory(io: Server): Promise<string> {
+    public async updateItemSaleHistory(io: Server): Promise<string> {
         // query Universalis for new sale history data
-        io.to('admin').emit('update-status', "Getting sale history from Universalis...");
+        // io.to('admin').emit('update-status', "Getting sale history from Universalis...");
         const saleHistory: IUniversalisItemHistoryResponse[] = await this.getItemSaleHistoryFromUniversalis(io);
+        console.log(`Finished Universalis part: ${Date.now()}`);
 
         // delete old item sale history to SQL
+        console.log(`Before delete history from SQL: ${Date.now()}`);
         this.deleteItemSaleHistoryFromSQL();
+        console.log(`After delete history from SQL: ${Date.now()}`);
 
-        io.to('admin').emit('update-status', "Inserting new item sale history data to SQL...");
         // insert new item sale history to SQL
-        this.insertNewSaleDataToSQL(saleHistory);
-        console.log("Updated item sale history.");
+        // io.to('admin').emit('update-status', "Inserting new item sale history data to SQL...");
+        console.log(`Before insert new data to SQL: ${Date.now()}`);
+        this.insertNewSaleDataToSQL(saleHistory, io);
+        console.log("After insert new data to SQL.");
 
         // clear old median calculated data from nq and hq tables in SQL
-        console.log("Clearing calculated median data.")
+        console.log(`Before clear old calculated data: ${Date.now()}`);
         this.deleteItemSaleMediansFromSQL('nq');
         this.deleteItemSaleMediansFromSQL('hq');
+        console.log(`After clear old calculated data: ${Date.now()}`);
 
         // calculate and insert new median data to SQL
-        io.to('admin').emit('update-status', "Calculating new median data...");
-        this.calculateMedianSalePricesAndInsertToSQL();
+        // io.to('admin').emit('update-status', "Calculating new median data...");
+        console.log(`Before new calculated data: ${Date.now()}`);
+        await this.calculateMedianSalePricesAndInsertToSQL(io);
+        console.log(`After new calculated data: ${Date.now()}`);
         return "done";
     }
 
-    public test(){
-        this.calculateMedianSalePricesAndInsertToSQL();
+    public async test(io: Server){
+        this.deleteItemSaleMediansFromSQL('nq');
+        this.deleteItemSaleMediansFromSQL('hq');
+        await this.calculateMedianSalePricesAndInsertToSQL(io);
     }
 
-    private insertNewSaleDataToSQL(saleData: IUniversalisItemHistoryResponse[]): void {
+    private insertNewSaleDataToSQL(saleData: IUniversalisItemHistoryResponse[], io: Server): void {
+        this.updateProgress.currentStepName = "updatingSQL";
+        this.updateProgress.currentStepNameText = "Updating SQL";
+        this.updateProgress.currentStepValue = (this.itemIDarray.length * this.dataCenters.length) - (saleData.length);
         for (let item of saleData) {
             const insertStatement = this.db.prepare('INSERT INTO item_sale_history VALUES(?,?,?,?,?,?,?,?,?,?)');
             for (let entry of item.entries) {
@@ -201,6 +226,9 @@ export class MarketCalculator implements IMarketBoardSettings {
 
                 insertStatement.run(itemID, hq, pricePerUnit, quantity, buyerName, onMannequin, timestamp, worldName, worldID, dataCenterName);
             }
+            this.updateProgress.currentStepValue++;
+            this.updateProgress.descriptionText = `Item ID: ${item.itemID}`;
+            io.to('admin').emit('update-status', this.updateProgress)
         }
     }
 
@@ -226,13 +254,18 @@ export class MarketCalculator implements IMarketBoardSettings {
         });
     }
 
-    private calculateMedianSalePricesAndInsertToSQL() : string {
+    private async calculateMedianSalePricesAndInsertToSQL(io: Server) : Promise<string> {
         // calculate new median data
         console.log("Calculating new median sale data...")
         const selectDistinctItems = this.db.prepare('SELECT DISTINCT itemID, dataCenterName FROM item_sale_history');
         const itemList : IDataCenterSaleItem[] = selectDistinctItems.all();
+        this.updateProgress.currentStepName = "calculatingMedians";
+        this.updateProgress.currentStepNameText = "Calculating Price Medians";
+        this.updateProgress.currentStepValue = (this.itemIDarray.length * this.dataCenters.length) - (itemList.length);
 
+        io.to('admin').emit('update-status', this.updateProgress)
         for (let item of itemList) {
+            console.log(`Processing: ${item.itemID}, ${item.dataCenterName}`);
             const selectStatement2 = this.db.prepare('SELECT pricePerUnit, hq FROM item_sale_history WHERE itemID = ? AND dataCenterName = ? ORDER BY pricePerUnit DESC');
             const dataCenterSales = selectStatement2.all(item.itemID, item.dataCenterName);
             let salesNQ: number[] = [];
@@ -249,6 +282,7 @@ export class MarketCalculator implements IMarketBoardSettings {
                 }
             }
 
+            console.log("Before median has been calculated");
             // math stuff
             const medianNQ = this.getDataCenterItemSaleMedian(salesNQ);
             const medianHQ = this.getDataCenterItemSaleMedian(salesHQ)
@@ -261,6 +295,12 @@ export class MarketCalculator implements IMarketBoardSettings {
             if (salesHQ.length > 0) {
                 this.insertDataCenterItemSaleMediansToSQL(item, medianHQ, HQSaleCount, 'hq');
             }
+
+            console.log("After median has been calculated");
+            this.updateProgress.currentStepValue++;
+            this.updateProgress.descriptionText = `Item ID: ${item.itemID}`;
+            await this.sleep(1);
+            io.to('admin').emit('update-status', this.updateProgress)
         }
         return "done";
     }
@@ -284,15 +324,18 @@ export class MarketCalculator implements IMarketBoardSettings {
 
     private async getItemSaleHistoryFromUniversalis(io: Server): Promise<IUniversalisItemHistoryResponse[]> {
         const saleHistory: IUniversalisItemHistoryResponse[] = [];
-        let overallItemCount: number = item_ids.length * this.dataCenters.length // total amount of items across all data centers
-        let overallProgress: number = 0;
+        this.updateProgress.currentStepName = "fetchingPrices";
+        this.updateProgress.currentStepNameText = "Fetching Prices";
+        this.updateProgress.currentStepValue = 0
+        io.to('admin').emit('update-status', this.updateProgress);
         for (let dataCenter of this.dataCenters) {
             // temporary array, remove IDs from this to avoid rate limit on universalis API
             const idArray: number[] = item_ids.slice();
             const totalItemCount: number = idArray.length;
             let currDataCenterItemNum: number = 0;
+            // not actually Axios request, but setting the retry configuration for Axios Retry
             axiosRetry(Axios, {
-                retries: 20,
+                retries: 15,
                 retryDelay: () => { return 1000 * 5; },
                 retryCondition: (error) => {
                     return error?.response?.status != 200 || true;
@@ -302,8 +345,9 @@ export class MarketCalculator implements IMarketBoardSettings {
             });
             while (idArray.length > 0) {
                 let urlItemList: number[] = [];
-                for (let i = 0; i < this.item_limit; i++) {
+                for (let i = 0; i < this.item_limit && idArray.length > 0; i++) {
                     urlItemList.push(idArray.pop()!);
+                    this.updateProgress.currentStepValue++;
                     currDataCenterItemNum++;
                 }
                 let requestURL = `${this.baseURL}/${dataCenter}/${urlItemList.toString()}?entriesToReturn=${this.entries_to_return}&entriesWithin=${this.entries_within}`;
@@ -316,10 +360,12 @@ export class MarketCalculator implements IMarketBoardSettings {
                 for (const item in response.data.items) {
                     saleHistory.push(response.data.items[item]);
                 }
-                io.to('admin').emit('update-status', `${dataCenter}: ${currDataCenterItemNum} / ${totalItemCount}`);
-                this.sleep(this.rate_limit);
+                this.updateProgress.descriptionText = `${dataCenter}: ${currDataCenterItemNum} / ${totalItemCount}`;
+                io.to('admin').emit('update-status', this.updateProgress);
+                await this.sleep(this.rate_limit);
             }
         }
+        console.log("Done making requests.");
         return saleHistory;
     }
 
@@ -327,7 +373,7 @@ export class MarketCalculator implements IMarketBoardSettings {
     private insertDataCenterItemSaleMediansToSQL(item: IDataCenterSaleItem, medianNQ: number, saleCount: number, quality: string): void {
         const insertStatement1 = this.db.prepare(`INSERT INTO item_sale_median_data_${quality} VALUES(?, ?, ?, ?)`);
         insertStatement1.run(item.itemID, item.dataCenterName, Math.floor(medianNQ), saleCount);
-        console.log(`Inserted ${item.itemID} NQ median`);
+        // console.log(`Inserted ${item.itemID} NQ median`);
     }
 
     // get list of item IDs and the lowest median sale price/datacenter
@@ -578,12 +624,17 @@ export class MarketCalculator implements IMarketBoardSettings {
         }
     }
 
+    public resetProgressInfo(): void {
+        this.updateProgress = {
+            currentStepName: null,
+            currentStepNameText: null,
+            currentStepValue: null,
+            overallMax: item_ids.length * this.dataCenters.length * 3 // # of items x # of DC's x # of steps (3)
+        };
+    }
+
     // need to define our own sleep method since nodeJS doesn't have one...
     private sleep(ms: number | undefined): Promise<unknown> {
         return new Promise(r => setTimeout(r, ms));
-    }
-
-    private updateAdminProgress() {
-
     }
 }

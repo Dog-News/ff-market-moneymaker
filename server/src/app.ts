@@ -8,7 +8,7 @@ const app = new Koa();
 const router = new Router();
 const market = new MarketCalculator();
 const server = require('http').Server(app.callback());
-const io : Server = require ('socket.io')(server, {cors: true});
+const io : Server = require ('socket.io')(server, {cors: true, upgrades: ['websocket']});
 /**************************************************************************
  ************* API routes *************************************************
 **************************************************************************/
@@ -22,7 +22,7 @@ router.get('/', (ctx: Koa.Context, next: Function) => {
 router.get('/api/test', (ctx: Koa.Context, next: Function) => {
     // console.log(ctx.params.itemID);
     // const result = market.getCraftedItemCostAndIngredients(ctx.params.itemID);
-    market.test();
+    market.test(io);
     ctx.body = "done";
 });
 
@@ -51,10 +51,28 @@ io.on('connection', (socket: Socket) => {
     socket.on('join', (room: string) => {
         socket.join(room);
         console.log("joined admin channel");
+        io.to('admin').emit('update-status', market.updateProgress);
+        if (!market.processStarted) {
+            io.to('admin').emit('change-btn-enabled', true);    
+        }
     });
 
-    socket.on('update-data', () => {
-        market.updateItemSaleHistory(io);
+    socket.on('update-data', async () => {
+        if (market.processStarted == true) 
+            return;
+        market.resetProgressInfo();
+        market.processStarted = true;
+        io.to('admin').emit('reset-progress');
+        io.to('admin').emit('change-btn-enabled', false);
+        try {
+            await market.updateItemSaleHistory(io);
+            // await market.test(io);
+        } catch (e: any) {
+            io.to('admin').emit('error', (e));
+        }
+        market.processStarted = false;
+        io.to('admin').emit('change-btn-enabled', true);
+        io.to('admin').emit('update-done');
     });
 })
 

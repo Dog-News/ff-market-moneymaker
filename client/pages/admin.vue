@@ -4,17 +4,17 @@
             <div class="col-md-12 m-auto">
                 <div class="mt-5">
                     <div class="mb-2 pt-5">
-                        <span class="font-weight-bold">Fetching Prices</span><span class="float-right">{{response}}</span>
+                        <span class="font-weight-bold">{{this.progress.stepNameText}}</span><span class="float-right">{{progress.descriptionText}}</span>
                     </div>
                     <div class="mb-5">
                         <b-progress :max="progress.overallProgressMax">
-                            <b-progress-bar variant="primary" :value="progress.fetchingData.value" show-progress></b-progress-bar>
+                            <b-progress-bar variant="primary" :value="progress.fetchingPrices.value" show-progress></b-progress-bar>
                             <b-progress-bar variant="success" :value="progress.updatingSQL.value" animated show-progress></b-progress-bar>
                             <b-progress-bar variant="info" :value="progress.calculatingMedians.value" striped show-progress></b-progress-bar>
                         </b-progress>
                     </div>
-                    <b-input type="text" v-model="testMsg" />
-                    <button class="btn btn-primary" @click="test">Test</button>
+                    <button class="btn btn-primary" @click="startUpdateProcess" :disabled="!btnEnabled">Go</button>
+                    <b-alert v-if="errorMsg" show variant="danger">{{errorMsg}}</b-alert>
                 </div>
             </div>
         </div>
@@ -25,12 +25,14 @@
 export default {
     data() {
         return{
-            testMsg: null,
-            response: null,
+            btnEnabled: false,
+            errorMsg: null,
             progress: {
-                overallProgressMax: 1000,
-                fetchingData: {
-                    value: 100,
+                descriptionText: null,
+                stepNameText: null,
+                overallProgressMax: null,
+                fetchingPrices: {
+                    value: null,
                 },
                 updatingSQL: {
                     value: null,
@@ -47,7 +49,8 @@ export default {
             // nuxt-socket-io opts: 
             name: 'admin', // Use socket "home"
             channel: '', // connect to '/index'
-            persist: false,
+            persist: true,
+            timeout: 300000,
             // socket.io-client opts:
             reconnection: true
         });
@@ -55,13 +58,44 @@ export default {
         this.socket.emit('join', "admin");
 
         this.socket.on('update-status', (data) => {
-                this.response = data;
+            if (data.currentStepName) {
+                this.progress.overallProgressMax = data.overallMax;
+                this.progress.descriptionText = data.descriptionText;
+                this.progress.stepNameText = data.currentStepNameText;
+                this.progress[data.currentStepName].value = data.currentStepValue;
+            }
+        });
+
+        this.socket.on('error', (data) => {
+            this.errorMsg = data.message;
+        });
+
+        this.socket.on('change-btn-enabled', (data) => {
+            this.btnEnabled = data;
+        });
+
+        this.socket.on('reset-progress', () => {
+            this.resetProgress();
+        });
+
+        this.socket.on('update-done', (data) => {
+            this.progress.stepNameText = "Done"
         });
         
     },
     methods: {
-        test() {
-            this.socket.emit('test', this.testMsg);
+        startUpdateProcess() {
+            this.resetProgress();
+            this.errorMsg = null;
+            this.socket.emit('update-data');
+        },
+        resetProgress() {
+            this.progress.descriptionText = null;
+            this.progress.stepNameText = null;
+            this.progress.overallProgressMax = null;
+            this.progress.fetchingPrices.value = null;
+            this.progress.updatingSQL.value = null;
+            this.progress.calculatingMedians.value = null;
         }
     },
     name: 'AdminPage'
