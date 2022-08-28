@@ -60,15 +60,16 @@ io.on('connection', (socket: Socket) => {
     socket.on('update-data', async () => {
         if (market.processStarted == true) 
             return;
-        market.resetProgressInfo();
         market.processStarted = true;
-        io.to('admin').emit('reset-progress');
         io.to('admin').emit('change-btn-enabled', false);
+        io.to('admin').emit('reset-progress');
+        market.resetProgressInfo();
         try {
             await market.updateItemSaleHistory(io);
             // await market.test(io);
         } catch (e: any) {
             io.to('admin').emit('error', (e));
+            console.log(e.message);
         }
         market.processStarted = false;
         io.to('admin').emit('change-btn-enabled', true);

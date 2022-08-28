@@ -20,7 +20,7 @@ export default {
   },
 
   // turn off server side rendering
-  ssr: false,
+  // ssr: false,
 
   // Global CSS: https://go.nuxtjs.dev/config-css
   css: [
@@ -39,7 +39,8 @@ export default {
     '@nuxt/image'
   ],
   image: {
-    // Options
+    //Options
+    // domains: ['localhost']
   },
   // Modules: https://go.nuxtjs.dev/config-modules
   modules: [

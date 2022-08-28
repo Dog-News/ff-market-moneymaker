@@ -9,7 +9,7 @@
                     <div class="mb-5">
                         <b-progress :max="progress.overallProgressMax">
                             <b-progress-bar variant="primary" :value="progress.fetchingPrices.value" show-progress></b-progress-bar>
-                            <b-progress-bar variant="success" :value="progress.updatingSQL.value" animated show-progress></b-progress-bar>
+                            <!-- <b-progress-bar variant="success" :value="progress.updatingSQL.value" animated show-progress></b-progress-bar> -->
                             <b-progress-bar variant="info" :value="progress.calculatingMedians.value" striped show-progress></b-progress-bar>
                         </b-progress>
                     </div>
@@ -34,9 +34,9 @@ export default {
                 fetchingPrices: {
                     value: null,
                 },
-                updatingSQL: {
-                    value: null,
-                },
+                // updatingSQL: {
+                //     value: null,
+                // },
                 calculatingMedians: {
                     value: null,
                 },
@@ -94,7 +94,7 @@ export default {
             this.progress.stepNameText = null;
             this.progress.overallProgressMax = null;
             this.progress.fetchingPrices.value = null;
-            this.progress.updatingSQL.value = null;
+            // this.progress.updatingSQL.value = null;
             this.progress.calculatingMedians.value = null;
         }
     },

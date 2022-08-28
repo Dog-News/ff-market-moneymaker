@@ -143,6 +143,8 @@ export class MarketCalculator implements IMarketBoardSettings {
     updateProgress: IUpdateProgress
     processStarted: boolean
     itemIDarray: number[]
+    itemCount: number
+    totalNumberOfProgressSteps: number
 
     constructor() {
         this.baseURL = "https://universalis.app/api/v2/history";
@@ -158,45 +160,36 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.rate_limit = 20; // wait so we don't DDOS universalis
         this.entries_to_return = 999999; 
         this.entries_within = 172800; // 2 days in seconds
-        this.updateProgress = {
-            currentStepName: null,
-            currentStepNameText: null,
-            currentStepValue: null,
-            overallMax: item_ids.length * this.dataCenters.length * 3 // # of items x # of DC's x # of steps (3)
-        }
-        this.processStarted = false;
         this.itemIDarray = item_ids.slice();
+        this.itemCount = this.itemIDarray.length;
+        this.totalNumberOfProgressSteps = 2;
+        this.resetProgressInfo();
+        this.processStarted = false;
     }
    
     // Deletes data from local SQL and replaces with new data
     public async updateItemSaleHistory(io: Server): Promise<string> {
-        // query Universalis for new sale history data
-        // io.to('admin').emit('update-status', "Getting sale history from Universalis...");
-        const saleHistory: IUniversalisItemHistoryResponse[] = await this.getItemSaleHistoryFromUniversalis(io);
+        // Remove old sale history        
+        console.log("Deleting old sale history...");
+        this.deleteItemSaleHistoryFromSQL();
+        console.log("Done!");
+
+        // Get new sale history
+        await this.getItemSaleHistoryFromUniversalis(io);
         console.log(`Finished Universalis part: ${Date.now()}`);
 
-        // delete old item sale history to SQL
-        console.log(`Before delete history from SQL: ${Date.now()}`);
-        this.deleteItemSaleHistoryFromSQL();
-        console.log(`After delete history from SQL: ${Date.now()}`);
-
-        // insert new item sale history to SQL
-        // io.to('admin').emit('update-status', "Inserting new item sale history data to SQL...");
-        console.log(`Before insert new data to SQL: ${Date.now()}`);
-        this.insertNewSaleDataToSQL(saleHistory, io);
-        console.log("After insert new data to SQL.");
-
-        // clear old median calculated data from nq and hq tables in SQL
-        console.log(`Before clear old calculated data: ${Date.now()}`);
+        // Remove old median calculations
+        console.log('Deleting old NQ median sale data...');
         this.deleteItemSaleMediansFromSQL('nq');
+        console.log("Done!")
+        console.log('Deleting old HQ median sale data...');
         this.deleteItemSaleMediansFromSQL('hq');
-        console.log(`After clear old calculated data: ${Date.now()}`);
+        console.log("Done!")
 
-        // calculate and insert new median data to SQL
-        // io.to('admin').emit('update-status', "Calculating new median data...");
-        console.log(`Before new calculated data: ${Date.now()}`);
+        // Calculate new median data
+        console.log("Calculating new median sale data...");
         await this.calculateMedianSalePricesAndInsertToSQL(io);
-        console.log(`After new calculated data: ${Date.now()}`);
+        console.log("Done!");
         return "done";
     }
 
@@ -207,10 +200,11 @@ export class MarketCalculator implements IMarketBoardSettings {
     }
 
     private insertNewSaleDataToSQL(saleData: IUniversalisItemHistoryResponse[], io: Server): void {
-        this.updateProgress.currentStepName = "updatingSQL";
-        this.updateProgress.currentStepNameText = "Updating SQL";
-        this.updateProgress.currentStepValue = (this.itemIDarray.length * this.dataCenters.length) - (saleData.length);
+        // this.updateProgress.currentStepName = "updatingSQL";
+        // this.updateProgress.currentStepNameText = "Updating SQL";
+        // this.updateProgress.currentStepValue = (this.itemIDarray.length * this.dataCenters.length) - (saleData.length);
         for (let item of saleData) {
+            console.log(`Inserting to SQL ${item.itemID}`);
             const insertStatement = this.db.prepare('INSERT INTO item_sale_history VALUES(?,?,?,?,?,?,?,?,?,?)');
             for (let entry of item.entries) {
                 const itemID = item.itemID || null;
@@ -226,9 +220,9 @@ export class MarketCalculator implements IMarketBoardSettings {
 
                 insertStatement.run(itemID, hq, pricePerUnit, quantity, buyerName, onMannequin, timestamp, worldName, worldID, dataCenterName);
             }
-            this.updateProgress.currentStepValue++;
-            this.updateProgress.descriptionText = `Item ID: ${item.itemID}`;
-            io.to('admin').emit('update-status', this.updateProgress)
+            // this.updateProgress.currentStepValue++;
+            // this.updateProgress.descriptionText = `Item ID: ${item.itemID}`;
+            // io.to('admin').emit('update-status', this.updateProgress)
         }
     }
 
@@ -322,11 +316,10 @@ export class MarketCalculator implements IMarketBoardSettings {
         return worldDataFormatted;
     }
 
-    private async getItemSaleHistoryFromUniversalis(io: Server): Promise<IUniversalisItemHistoryResponse[]> {
-        const saleHistory: IUniversalisItemHistoryResponse[] = [];
+    private async getItemSaleHistoryFromUniversalis(io: Server): Promise<string> {
         this.updateProgress.currentStepName = "fetchingPrices";
         this.updateProgress.currentStepNameText = "Fetching Prices";
-        this.updateProgress.currentStepValue = 0
+        this.updateProgress.currentStepValue = 0;
         io.to('admin').emit('update-status', this.updateProgress);
         for (let dataCenter of this.dataCenters) {
             // temporary array, remove IDs from this to avoid rate limit on universalis API
@@ -344,6 +337,7 @@ export class MarketCalculator implements IMarketBoardSettings {
                 
             });
             while (idArray.length > 0) {
+                let saleHistory: IUniversalisItemHistoryResponse[] = [];
                 let urlItemList: number[] = [];
                 for (let i = 0; i < this.item_limit && idArray.length > 0; i++) {
                     urlItemList.push(idArray.pop()!);
@@ -360,15 +354,15 @@ export class MarketCalculator implements IMarketBoardSettings {
                 for (const item in response.data.items) {
                     saleHistory.push(response.data.items[item]);
                 }
+                this.insertNewSaleDataToSQL(saleHistory, io);
                 this.updateProgress.descriptionText = `${dataCenter}: ${currDataCenterItemNum} / ${totalItemCount}`;
                 io.to('admin').emit('update-status', this.updateProgress);
                 await this.sleep(this.rate_limit);
             }
         }
         console.log("Done making requests.");
-        return saleHistory;
+        return "done";
     }
-
 
     private insertDataCenterItemSaleMediansToSQL(item: IDataCenterSaleItem, medianNQ: number, saleCount: number, quality: string): void {
         const insertStatement1 = this.db.prepare(`INSERT INTO item_sale_median_data_${quality} VALUES(?, ?, ?, ?)`);
@@ -629,7 +623,7 @@ export class MarketCalculator implements IMarketBoardSettings {
             currentStepName: null,
             currentStepNameText: null,
             currentStepValue: null,
-            overallMax: item_ids.length * this.dataCenters.length * 3 // # of items x # of DC's x # of steps (3)
+            overallMax: this.itemCount * this.dataCenters.length * this.totalNumberOfProgressSteps // # of items x # of DC's x # of steps (2)
         };
     }
 
