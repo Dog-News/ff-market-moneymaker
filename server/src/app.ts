@@ -82,4 +82,4 @@ app.use(router.routes());
 app.use(router.allowedMethods());
 // app.listen(4000);    
 // use 'server' here so socket.io works
-server.listen(4000);
+server.listen(4001);
