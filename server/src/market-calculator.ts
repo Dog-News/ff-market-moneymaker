@@ -156,8 +156,10 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.db = new sqlite3('./database/ffmarket.db');
         this.db.pragma('journal_mode = WAL');
         this.worlds = this.getWorldNameAndIDs();
-        this.item_limit = 50; // limit length of item list in URL
-        this.rate_limit = 20; // wait so we don't DDOS universalis
+        // this.item_limit = 50; // limit length of item list in URL
+        // this.rate_limit = 20; // wait so we don't DDOS universalis
+        this.item_limit = 75; // limit length of item list in URL
+        this.rate_limit = 5; // wait so we don't DDOS universalis
         this.entries_to_return = 999999; 
         this.entries_within = 172800; // 2 days in seconds
         this.itemIDarray = item_ids.slice();
@@ -328,7 +330,7 @@ export class MarketCalculator implements IMarketBoardSettings {
             let currDataCenterItemNum: number = 0;
             // not actually Axios request, but setting the retry configuration for Axios Retry
             axiosRetry(Axios, {
-                retries: 15,
+                retries: 100,
                 retryDelay: () => { return 1000 * 5; },
                 retryCondition: (error) => {
                     return error?.response?.status != 200 || true;

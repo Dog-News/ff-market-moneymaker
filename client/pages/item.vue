@@ -68,7 +68,7 @@ export default {
         async getMedianSoldPrices() {
             if (!this.itemID || !this.selectedWorld) return;
             this.medianSalePrices = [];
-            const data = await this.$axios.$get(`http://localhost:4000/api/getMedianSoldPrice/${this.itemID}/${this.selectedWorld}`);
+            const data = await this.$axios.$get(`http://localhost:4001/api/getMedianSoldPrice/${this.itemID}/${this.selectedWorld}`);
             this.selectedWorldPrice = data.selectedWorldPrice;
             console.log(this.selectedWorld);
             for (let saleData of data.medianPriceData) {

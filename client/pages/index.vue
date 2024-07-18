@@ -265,7 +265,7 @@ export default {
     methods: {
         async test() {
             if (!this.selectedDataCenter) return;
-            const data = await this.$axios.$get(`http://localhost:4000/api/getMedianSoldPrice/allItems/${this.selectedDataCenter}`);
+            const data = await this.$axios.$get(`http://localhost:4001/api/getMedianSoldPrice/allItems/${this.selectedDataCenter}`);
             this.medianSaleData = data;
             this.selectedDataCenterForData = this.selectedDataCenter // do this so changing drop down menu doesn't update the table display until requested again
             this.totalRows = this.medianSaleData?.length;
