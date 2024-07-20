@@ -15,6 +15,7 @@
     "axios": "^0.27.2",
     "axios-retry": "^3.3.1",
     "better-sqlite3": "^9.4.3",
+    "csv-parser": "^3.0.0",
     "koa": "^2.13.4",
     "koa-router": "^10.1.1",
     "socket.io": "^4.5.1",

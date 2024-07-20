@@ -13,6 +13,8 @@ interface IMarketBoardSettings {
     rate_limit: number
     entries_to_return: number
     entries_within: number
+    retry_count: number
+    retry_delay: number
 }
 
 /**
@@ -145,6 +147,8 @@ export class MarketCalculator implements IMarketBoardSettings {
     itemIDarray: number[]
     itemCount: number
     totalNumberOfProgressSteps: number
+    retry_count: number;
+    retry_delay: number;
 
     constructor() {
         this.baseURL = "https://universalis.app/api/v2/history";
@@ -158,8 +162,8 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.worlds = this.getWorldNameAndIDs();
         // this.item_limit = 50; // limit length of item list in URL
         // this.rate_limit = 20; // wait so we don't DDOS universalis
-        this.item_limit = 75; // limit length of item list in URL
-        this.rate_limit = 5; // wait so we don't DDOS universalis
+        this.item_limit = 30; // limit length of item list in URL
+        this.rate_limit = 20; // wait so we don't DDOS universalis
         this.entries_to_return = 999999; 
         this.entries_within = 172800; // 2 days in seconds
         this.itemIDarray = item_ids.slice();
@@ -167,6 +171,8 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.totalNumberOfProgressSteps = 2;
         this.resetProgressInfo();
         this.processStarted = false;
+        this.retry_count = 3;
+        this.retry_delay = 1000 * 5;
     }
    
     // Deletes data from local SQL and replaces with new data
@@ -323,45 +329,52 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.updateProgress.currentStepNameText = "Fetching Prices";
         this.updateProgress.currentStepValue = 0;
         io.to('admin').emit('update-status', this.updateProgress);
+    
         for (let dataCenter of this.dataCenters) {
-            // temporary array, remove IDs from this to avoid rate limit on universalis API
             const idArray: number[] = item_ids.slice();
             const totalItemCount: number = idArray.length;
             let currDataCenterItemNum: number = 0;
-            // not actually Axios request, but setting the retry configuration for Axios Retry
-            axiosRetry(Axios, {
-                retries: 100,
-                retryDelay: () => { return 1000 * 5; },
-                retryCondition: (error) => {
-                    return error?.response?.status != 200 || true;
-                },
-                shouldResetTimeout: true,
-                
-            });
+    
             while (idArray.length > 0) {
                 let saleHistory: IUniversalisItemHistoryResponse[] = [];
                 let urlItemList: number[] = [];
+    
                 for (let i = 0; i < this.item_limit && idArray.length > 0; i++) {
                     urlItemList.push(idArray.pop()!);
                     this.updateProgress.currentStepValue++;
                     currDataCenterItemNum++;
                 }
+    
                 let requestURL = `${this.baseURL}/${dataCenter}/${urlItemList.toString()}?entriesToReturn=${this.entries_to_return}&entriesWithin=${this.entries_within}`;
-                console.log(requestURL);
-                const response = await Axios({
-                    method: "get",
-                    timeout: 1000 * 30,
-                    url: requestURL
-                });
-                for (const item in response.data.items) {
-                    saleHistory.push(response.data.items[item]);
+                
+                // Log the URL being requested
+                console.log(`Requesting URL: ${requestURL}`);
+    
+                try {
+                    const response = await this.performRequestUntilSuccess(() => {
+                        return Axios({
+                            method: "get",
+                            timeout: 1000 * 30,
+                            url: requestURL
+                        });
+                    }, this.retry_delay);
+    
+                    for (const item in response.data.items) {
+                        saleHistory.push(response.data.items[item]);
+                    }
+    
+                    this.insertNewSaleDataToSQL(saleHistory, io);
+                    this.updateProgress.descriptionText = `${dataCenter}: ${currDataCenterItemNum} / ${totalItemCount}`;
+                    io.to('admin').emit('update-status', this.updateProgress);
+    
+                } catch (error) {
+                    console.log(`This should never be reached.`);
                 }
-                this.insertNewSaleDataToSQL(saleHistory, io);
-                this.updateProgress.descriptionText = `${dataCenter}: ${currDataCenterItemNum} / ${totalItemCount}`;
-                io.to('admin').emit('update-status', this.updateProgress);
+    
                 await this.sleep(this.rate_limit);
             }
         }
+    
         console.log("Done making requests.");
         return "done";
     }
@@ -617,6 +630,28 @@ export class MarketCalculator implements IMarketBoardSettings {
             ingredientAmount: ingredientAmount,
             predictedCost: Math.floor((ingredientInfo?.medianPrice || 0) * ingredientAmount),
             hq: ingredientInfo?.hq || null
+        }
+    }
+
+    private async performRequestUntilSuccess<T>(requestFunction: () => Promise<T>, delay: number): Promise<T> {
+        while (true) {
+            try {
+                return await requestFunction();
+            } catch (error) {
+                console.log(`Request failed with error: ${error.message}. Retrying in ${delay / 1000} seconds...`);
+                
+                // Log the detailed error if available
+                if (error.response) {
+                    console.log(`Response Status: ${error.response.status}`);
+                    console.log(`Response Data: ${error.response.data}`);
+                } else if (error.request) {
+                    console.log('No response received:', error.request);
+                } else {
+                    console.log('Error setting up request:', error.message);
+                }
+    
+                await this.sleep(delay);
+            }
         }
     }
 
