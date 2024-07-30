@@ -1,34 +1,18 @@
 <template>
-    <div>
-        <!-- <button @click="updateMarketData">Update market data</button> -->
-        <!-- Item ID: <input type="text" v-model="itemID"/> -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-5 p-4">
-        <div class="d-flex w-100 justify-content-end">
-        <div class="d-flex">
-                <select class="custom-select" @change="test" v-model="selectedDataCenter">
-                    <option value="Aether">Aether</option>
-                    <option value="Primal">Primal</option>
-                    <option value="Crystal">Crystal</option>
-                </select>
-        
-                <!-- <button class="btn btn-primary ml-2" @click="test">Go</button>
-                <div>{{ datadump }}</div> -->
-            </div>
-        </div>
-        </nav>
-             <div class="container pt-5">
+    <div id="cross-selling" class="content-area">
+             <div class="container-fullwidth px-5 pt-5 pb-2">
 
             <div class="row">
                 <div class="col-md-12 m-auto">
-                <h1 class="mb-5">Cross Data Center</h1>
+                <h1>Cross Data Center</h1>
             </div>
             </div>
             </div>
-        <div class="container">
+        <div class="container-fullwidth">
 
             <div class="row">
                 <div class="col-md-12 m-auto">
-                    <div class="float-left">
+                    <div class="float-left pl-5">
                     <div class="d-flex">
                         <b-form-group class="mb-0">
                             <b-input-group size="sm">
@@ -88,7 +72,7 @@
                     </div>
                     
                     </div>
-                    <div class="float-right">
+                    <div class="float-right pr-5">
                         <b-pagination v-model="currentPage" :total-rows="totalRows" :per-page="perPage" aria-controls="item-table"></b-pagination>
                     </div>
 
@@ -123,7 +107,7 @@
                         </template>
 
                         <template #cell(hq)="hq">
-                            <nuxt-img src="/images/hq.png" v-if="hq.value" />
+                            <nuxt-img src="/images/hq.png" v-if="hq.value"/>
                         </template>
 
                         <!-- Crafting recipe details -->
@@ -143,7 +127,7 @@
                         <template #cell(itemName)="row">
                             <div class="d-flex align-items-center">
                             <div class="mr-4 item-icon-container">
-                                <nuxt-img :src="'/images/icon2x/' + row.item.itemID + '.png'" width="56" />
+                                <nuxt-img :src="'/images/icon2x/' + row.item.itemID + '.png'" width="56" placeholder="/images/item-placeholder.png" />
                                 <img class="icon-overlay" src="/images/image-overlay.png">
                             </div>
                             <div>
@@ -196,7 +180,7 @@
                     </b-table>
                                     </div>
                 <div class="col-md-12 m-auto">
-                    <div class="float-right">
+                    <div class="float-right pr-5">
                         <b-pagination
                             v-model="currentPage"
                             :total-rows="totalRows"
@@ -230,7 +214,7 @@ export default {
                 // {key: "selectedWorldMedian", label: "Sell", sortable: true, class: "world-section", formatter: (value) => {return value?.toLocaleString("en-US") + " ɢ"}},
                 // {key: "selectedSaleCount", label: "Sales", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
 
-                {key: "itemName", class:"text-left", sortable: true},
+                {key: "itemName", class:"text-left pl-5", sortable: true},
                 // {key: "dataCenterName", sortable: true},
                 {key: "selectedSaleCount", label: "Vol", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US")}},
                 {key: "averageStackSize", label: "Stack", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US")}},
@@ -240,11 +224,11 @@ export default {
                 // {key: "quantitySold", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US")}},
                 // {key: "difference", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US")}},
                 {key: "predictedTotalProfit", label: "Profit", class: "font-weight-bold", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US") + " ɢ"}},
-                {key: "profitPercentage", label: "Profit %", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US") + "%"}},
+                {key: "profitPercentage", class:"pr-5", label: "Profit %", sortable: true, formatter: (value) => {return Math.floor(value).toLocaleString("en-US") + "%"}},
             ],
             medianSaleData: null,
             datadump: null,
-            selectedDataCenter: "Primal",
+            // selectedDataCenter: "Primal",
             selectedDataCenterPrice: null,
             selectedDataCenterForData: null, // for displaying in the table after request
             totalRows: 0,
@@ -260,10 +244,10 @@ export default {
     },
     async mounted() {
         this.totalRows = this.medianSaleData?.length;
-        this.test();
+        this.loadData();
     },
     methods: {
-        async test() {
+        async loadData() {
             if (!this.selectedDataCenter) return;
             const data = await this.$axios.$get(`http://localhost:4001/api/getMedianSoldPrice/allItems/${this.selectedDataCenter}`);
             this.medianSaleData = data;
@@ -276,10 +260,19 @@ export default {
             this.currentPage = 1
         }
     },
+    watch: {
+        selectedDataCenter(newValue, oldValue) {
+            this.medianSaleData = []; // Clear the data
+            this.loadData();
+    }
+    },
     computed: {
         // filteredItems() {
         //     return this.medianSaleData;
         // },
+        selectedDataCenter() {
+            return this.$store.state.selectedDataCenter;
+        },
         filteredItems() {
             const filterOnItemName = !!this.itemNameFilter ? true : false;
             const filterOnVolume = !!this.minVolumeFilter ? true : false;

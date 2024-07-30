@@ -1,0 +1,64 @@
+<template>
+    <div id="sidebar">
+        <div class="sidebar-inner px-3">
+            <div class="sidebar-logo">
+                <a href="/" class="sidebar-logo-link">
+                    <span class="sidebar-logo-text">FF Market</span>
+                </a>
+            </div>
+            <div class="sidebar-nav py-5">
+                <ul class="sidebar-nav-items">
+                    <li class="sidebar-nav-item">
+                        <a href="/" class="sidebar-nav-link">
+                            <span class="sidebar-nav-icon">
+                                <i data-feather="home"></i>
+                            </span>
+                            <span class="sidebar-nav-text">Home</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
+                        <a href="/crafts" class="sidebar-nav-link">
+                            <span class="sidebar-nav-icon">
+                                <i data-feather="shopping-bag"></i>
+                            </span>
+                            <span class="sidebar-nav-text">Crafts</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
+                        <a href="/admin" class="sidebar-nav-link">
+                            <span class="sidebar-nav-icon">
+                                <i data-feather="server"></i>
+                            </span>
+                            <span class="sidebar-nav-text">Admin</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>    
+    </div>
+</template>
+
+<style>
+.sidebar-logo {
+    font-size: 30px;
+    line-height: 86px;
+    font-weight: 900;
+    height: 86px;
+    display: flex;
+}
+.sidebar-logo-link {
+    color: white;
+}
+
+.sidebar-nav ul {
+    list-style: none;
+    padding-left: 0;
+}
+.sidebar-nav li {
+padding-bottom: 8px;
+}
+.sidebar-nav a {
+    color: white;
+}
+
+</style>

@@ -59,7 +59,8 @@ var MarketCalculator = (function () {
         this.dataCenters = [
             "Primal",
             "Crystal",
-            "Aether"
+            "Aether",
+            "Dynamis"
         ];
         this.db = new better_sqlite3_1.default('./database/ffmarket.db');
         this.db.pragma('journal_mode = WAL');

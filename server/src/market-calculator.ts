@@ -155,7 +155,8 @@ export class MarketCalculator implements IMarketBoardSettings {
         this.dataCenters = [
             "Primal",
             "Crystal",
-            "Aether"
+            "Aether",
+            "Dynamis"
         ];
         this.db = new sqlite3('./database/ffmarket.db');
         this.db.pragma('journal_mode = WAL');

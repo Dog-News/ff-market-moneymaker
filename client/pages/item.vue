@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="content-area">
         <!-- <button @click="updateMarketData">Update market data</button> -->
         Item ID: <input type="text" v-model="itemID"/>
         <br>

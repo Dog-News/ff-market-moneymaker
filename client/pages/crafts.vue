@@ -1,34 +1,18 @@
 <template>
-    <div>
-        <!-- <button @click="updateMarketData">Update market data</button> -->
-        <!-- Item ID: <input type="text" v-model="itemID"/> -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-5 p-4">
-        <div class="d-flex w-100 justify-content-end">
-        <div class="d-flex">
-                <select class="custom-select" @change="test" v-model="selectedDataCenter">
-                    <option value="Aether">Aether</option>
-                    <option value="Primal">Primal</option>
-                    <option value="Crystal">Crystal</option>
-                </select>
-        
-                <!-- <button class="btn btn-primary ml-2" @click="test">Go</button>
-                <div>{{ datadump }}</div> -->
+    <div class="content-area">
+        <div class="container-fullwidth px-5 pt-5 pb-2">
+
+<div class="row">
+    <div class="col-md-12 m-auto">
+                <h1>Crafting Calculator</h1>
             </div>
-        </div>
-        </nav>
-             <div class="container pt-5">
+            </div>
+            </div>
+        <div class="container-fullwidth">
 
             <div class="row">
                 <div class="col-md-12 m-auto">
-                <h1 class="mb-5">Crafting Calculator</h1>
-            </div>
-            </div>
-            </div>
-        <div class="container">
-
-            <div class="row">
-                <div class="col-md-12 m-auto">
-                    <div class="float-left">
+                    <div class="float-left pl-5">
                     <div class="d-flex">
                         <b-form-group class="mb-0">
                             <b-input-group size="sm">
@@ -88,7 +72,7 @@
                     </div>
                     
                     </div>
-                    <div class="float-right">
+                    <div class="float-right pr-5">
                         <b-pagination v-model="currentPage" :total-rows="totalRows" :per-page="perPage" aria-controls="item-table"></b-pagination>
                     </div>
 
@@ -226,7 +210,7 @@
   </b-modal>
 
                 <div class="col-md-12 m-auto">
-                    <div class="float-right">
+                    <div class="float-right pr-5">
                         <b-pagination
                             v-model="currentPage"
                             :total-rows="totalRows"
@@ -249,13 +233,13 @@ export default {
                 // {key: "itemID", label: "Item ID", sortable: true},
                 // {key: "hq", label: "Quality", sortable: true},
                 // {key: "itemName", label: "Name", sortable: true, class:["table-text-data", "item-name-col"]},
-                {key: 'itemName', class: "item-name", sortable: true},
+                {key: 'itemName', class: "item-name pl-5", sortable: true},
                 {key: "volume", label: "Vol", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
                 {key: "avgStackSize",  label:"Stack", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")}},
                 {key: "totalCraftCost", label: "Cost", sortable: true, formatter: (value) => {return value?.toLocaleString("en-US")  + " ɢ"}},
                 {key: "medianSalePrice", label: "Sells", sortable: true, class: "world-heading", formatter: (value, key, item) => {return item.medianSalePrice != 0 ? value.toLocaleString("en-US")  + " ɢ" : ''}},
                 {key: "profit", label: "Profit", class: "font-weight-bold", sortable: true, formatter: (value, key, item) => {return item.medianSalePrice != 0 ? value.toLocaleString("en-US")  + " ɢ" : ''}},
-                {key: "profitPercentage", label: "Profit %", sortable: true, formatter: (value, key, item) => {return item.profitPercentage != 0 ? value?.toLocaleString("en-US") + "%" : ''}},
+                {key: "profitPercentage", class: "pr-5", label: "Profit %", sortable: true, formatter: (value, key, item) => {return item.profitPercentage != 0 ? value?.toLocaleString("en-US") + "%" : ''}},
                 // {key: "hqMedianSalePrice", label: "Sells", sortable: true, class: "world-heading", formatter: (value, key, item) => {return item.hqMedianSalePrice != 0 ? value.toLocaleString("en-US")  + " ɢ" : ''}},
                 // {key: "hqProfit", label: "Profit", sortable: true, formatter: (value, key, item) => {return item.hqMedianSalePrice != 0 ? value.toLocaleString("en-US")  + " ɢ" : ''}},
                 // {key: "hqProfitPercentage", label: "Profit %", sortable: true, formatter: (value, key, item) => {return item.hqMedianSalePrice != 0 ? value?.toLocaleString("en-US") + "%" : ''}},
@@ -265,7 +249,7 @@ export default {
             ],
             craftableItems: null,
             datadump: null,
-            selectedDataCenter: "Primal",
+            // selectedDataCenter: "Primal",
             selectedDataCenterPrice: null,
             selectedDataCenterForData: null, // for displaying in the table after request
             totalRows: 0,
@@ -282,10 +266,10 @@ export default {
     },
     async mounted() {
         this.totalRows = this.craftableItems?.length;
-        this.test();
+        this.loadData();
     },
     methods: {
-        async test() {
+        async loadData() {
             if (!this.selectedDataCenter) return;
             const data = await this.$axios.$get(`http://localhost:4001/api/getCraftableItems/${this.selectedDataCenter}`);
             this.craftableItems = data;
@@ -308,7 +292,16 @@ export default {
             }
         }
     },
+    watch: {
+        selectedDataCenter(newValue, oldValue) {
+            this.medianSaleData = []; // Clear the data
+            this.loadData();
+    }
+    },
     computed: {
+        selectedDataCenter() {
+            return this.$store.state.selectedDataCenter;
+        },
         filteredCraftableItems() {
             const filterOnCraftType = this.craftTypeFilter.length > 0 ? true : false;
             const filterOnItemName = !!this.itemNameFilter ? true : false;
