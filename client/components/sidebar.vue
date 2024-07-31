@@ -1,9 +1,9 @@
 <template>
     <div id="sidebar">
-        <div class="sidebar-inner px-3">
+        <div class="sidebar-inner px-4">
             <div class="sidebar-logo">
                 <a href="/" class="sidebar-logo-link">
-                    <span class="sidebar-logo-text">FF Market</span>
+                    <span class="sidebar-logo-text">XIV Markets</span>
                 </a>
             </div>
             <div class="sidebar-nav py-5">
@@ -13,17 +13,18 @@
                             <span class="sidebar-nav-icon">
                                 <i data-feather="home"></i>
                             </span>
-                            <span class="sidebar-nav-text">Home</span>
+                            <span class="sidebar-nav-text">Reselling</span>
                         </a>
                     </li>
                     <li class="sidebar-nav-item">
                         <a href="/crafts" class="sidebar-nav-link">
-                            <span class="sidebar-nav-icon">
-                                <i data-feather="shopping-bag"></i>
-                            </span>
-                            <span class="sidebar-nav-text">Crafts</span>
+                            <span class="sidebar-nav-text">Crafting</span>
                         </a>
                     </li>
+                </ul>
+            </div>
+            <div class="sidebar-nav border-top pt-3">
+                <ul class="sidebar-nav-items">
                     <li class="sidebar-nav-item">
                         <a href="/admin" class="sidebar-nav-link">
                             <span class="sidebar-nav-icon">
@@ -39,10 +40,18 @@
 </template>
 
 <style>
+.sidebar-nav-text {
+font-size: 20px;
+font-weight: 300;
+}
+#sidebar .border-top {
+    border-color: rgba(255,255,255,0.2)!important;
+}
+
 .sidebar-logo {
     font-size: 30px;
     line-height: 86px;
-    font-weight: 900;
+    font-weight: 300;
     height: 86px;
     display: flex;
 }

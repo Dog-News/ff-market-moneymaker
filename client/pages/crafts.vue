@@ -4,7 +4,7 @@
 
 <div class="row">
     <div class="col-md-12 m-auto">
-                <h1>Crafting Calculator</h1>
+                <h1>Crafting</h1>
             </div>
             </div>
             </div>
@@ -132,7 +132,7 @@
                         <template #cell(itemName)="row">
                         <div class="d-flex align-items-center">
                         <div class="mr-4 item-icon-container">
-                            <nuxt-img :src="'/images/icon2x/' + row.item.itemID + '.png'" width="56" />
+                            <nuxt-img :src="'/images/icon2x/' + row.item.itemID + '.png'" width="56" placeholder="/images/item-placeholder.png" />
                             <img class="icon-overlay" src="/images/image-overlay.png">
                         </div>
                         <div>
@@ -210,7 +210,7 @@
   </b-modal>
 
                 <div class="col-md-12 m-auto">
-                    <div class="float-right pr-5">
+                    <div class="float-right pr-5 pb-5">
                         <b-pagination
                             v-model="currentPage"
                             :total-rows="totalRows"
@@ -294,9 +294,9 @@ export default {
     },
     watch: {
         selectedDataCenter(newValue, oldValue) {
-            this.medianSaleData = []; // Clear the data
+            this.craftableItems = []; // Clear the data
             this.loadData();
-    }
+        }
     },
     computed: {
         selectedDataCenter() {

@@ -4,7 +4,7 @@
 
             <div class="row">
                 <div class="col-md-12 m-auto">
-                <h1>Cross Data Center</h1>
+                <h1>Reselling</h1>
             </div>
             </div>
             </div>
@@ -180,7 +180,7 @@
                     </b-table>
                                     </div>
                 <div class="col-md-12 m-auto">
-                    <div class="float-right pr-5">
+                    <div class="float-right pr-5 pb-5">
                         <b-pagination
                             v-model="currentPage"
                             :total-rows="totalRows"

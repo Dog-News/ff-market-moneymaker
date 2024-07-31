@@ -10,11 +10,14 @@
 
 <style>
 body {
-    background: black;
+    background-color: #030510;
+    background-image: url("/images/page-background.png");
+    background-size: cover;
+    background-attachment: fixed;
 }
 #layout {
     display: flex;
-    padding: 16px;
+    padding: 16px 16px 16px 0;
 }
 #sidebar {
     width: 300px;

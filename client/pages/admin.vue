@@ -1,8 +1,8 @@
 <template>
-    <div class="container content-area">
+    <div class="container-fullwidth content-area">
         <div class="row">
             <div class="col-md-12 m-auto">
-                <div class="mt-5">
+                <div class="p-5">
                     <div class="mb-2 pt-5">
                         <span class="font-weight-bold">{{this.progress.stepNameText}}</span><span class="float-right">{{progress.descriptionText}}</span>
                     </div>
