@@ -127,7 +127,7 @@
                         <template #cell(itemName)="row">
                             <div class="d-flex align-items-center">
                             <div class="mr-4 item-icon-container">
-                                <nuxt-img :src="'/images/icon2x/' + row.item.itemID + '.png'" width="56" placeholder="/images/item-placeholder.png" />
+                                <nuxt-img :key="row.item.itemID" :src="'/images/icon2x/' + row.item.itemID + '.png'" width="56" placeholder="/images/item-placeholder.png" />
                                 <img class="icon-overlay" src="/images/image-overlay.png">
                             </div>
                             <div>
