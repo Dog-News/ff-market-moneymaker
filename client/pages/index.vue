@@ -1,5 +1,5 @@
 <template>
-    <div id="cross-selling" class="content-area">
+    <div id="cross-selling" class="content-area index-content">
              <div class="container-fullwidth px-5 pt-5 pb-2">
 
             <div class="row">
