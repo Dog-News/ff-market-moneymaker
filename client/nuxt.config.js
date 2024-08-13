@@ -24,11 +24,13 @@ export default {
 
   // Global CSS: https://go.nuxtjs.dev/config-css
   css: [
+    '@fortawesome/fontawesome-svg-core/styles.css'
   ],
 
   // Plugins to run before rendering page: https://go.nuxtjs.dev/config-plugins
   plugins: [
-    '~/plugins/event-bus.js'
+    '~/plugins/event-bus.js',
+    '~/plugins/fontawesome.js'
   ],
 
   // Auto import components: https://go.nuxtjs.dev/config-components
@@ -68,8 +70,16 @@ export default {
   // },
 
   // Build Configuration: https://go.nuxtjs.dev/config-build
-  build: {
-  },
+   build: {
+      transpile: [
+        '@fortawesome/vue-fontawesome',
+        '@fortawesome/fontawesome-svg-core',
+        '@fortawesome/pro-solid-svg-icons',
+        '@fortawesome/pro-regular-svg-icons',
+        '@fortawesome/free-brands-svg-icons',
+'@awesome.me/kit-aea73eff9e/icons',
+      ]
+    },
 
   loading: {
     color: 'blue',

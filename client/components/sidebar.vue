@@ -1,3 +1,4 @@
+
 <template>
     <div id="sidebar">
         <div class="sidebar-inner px-4">
@@ -10,9 +11,7 @@
                 <ul class="sidebar-nav-items">
                     <li class="sidebar-nav-item">
                         <a href="/" class="sidebar-nav-link">
-                            <span class="sidebar-nav-icon">
-                                <i data-feather="home"></i>
-                            </span>
+                            <font-awesome-icon icon="fa-solid fa-coin" />
                             <span class="sidebar-nav-text">Reselling</span>
                         </a>
                     </li>
@@ -38,6 +37,10 @@
         </div>    
     </div>
 </template>
+
+<script setup lang="ts">
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+</script>
 
 <style>
 .sidebar-nav-text {

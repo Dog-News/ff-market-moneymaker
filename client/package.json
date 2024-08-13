@@ -9,6 +9,10 @@
     "generate": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=development HOST=0.0.0.0 PORT=3000 nuxt generate"
   },
   "dependencies": {
+    "@awesome.me/kit-aea73eff9e": "^1.0.4",
+    "@fortawesome/fontawesome-svg-core": "^6.6.0",
+    "@fortawesome/free-solid-svg-icons": "^6.6.0",
+    "@fortawesome/vue-fontawesome": "^2.0.10",
     "@nuxtjs/axios": "^5.13.6",
     "bootstrap": "^4.6.1",
     "bootstrap-vue": "^2.21.2",
