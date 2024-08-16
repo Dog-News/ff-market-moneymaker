@@ -2,7 +2,7 @@
     <div id="layout">
         <sidebar />
         <div id="main">
-            <topbar />
+            <!-- <topbar /> -->
             <Nuxt />
         </div>
     </div>
@@ -28,6 +28,7 @@ body {
 .content-area {
     background-color: white; 
     border-radius: 16px;
+    min-height: calc(100vh - 32px);
 }
 #topbar {
     width: 100%;
